@@ -1,0 +1,418 @@
+Otaku Hunter — Implementation Brief for Claude Code
+
+**Project type:** New standalone game, separate repo from the existing Hanasou study app.
+**Genre:** *Vampire Survivors*–style auto-battler (move-only input, auto-attack) with a Japanese-learning layer bolted onto the level-up screen.
+**Engine:** Phaser 3 + Vite (web build, must run on **both** desktop and mobile in a browser; PWA-installable; leave room to wrap in Capacitor later).
+**Content source:** Reuses the sentence data from Hanasou’s `lessons.js` (`window.LEVELS` + `window.LESSONS`). Do **not** rebuild the content — consume it.
+
+This brief is the source of truth. Read the **Data Contract** section first; everything downstream depends on it.
+
+-----
+
+## 0. Build order (do it in this sequence)
+
+1. Project scaffold (Phaser 3 + Vite, mobile+desktop input, one playable scene).
+1. Data layer: load `lessons.js`, build the content index, write the **stage config** structure.
+1. Core VS loop: movement, auto-attack, enemy spawner, XP, level-up trigger. **No learning yet** — use placeholder upgrade cards.
+1. The particle-socket level-up minigame (the centerpiece — see §4). Wire it to grade-scale the upgrade.
+1. Word pickups + Merch-Mule drops → run-only collected-word pool feeding the minigame.
+1. Stages, bosses, character classes.
+1. Polish: juice, SRS “haunting” requeue, persistence.
+
+Get steps 1–4 working as a vertical slice before building breadth. The game must be *fun to survive* and *meaningful to level up* before stages/characters matter.
+
+-----
+
+## 1. Data Contract (READ FIRST — exact shapes from real data)
+
+The content lives in two globals defined in Hanasou’s `lessons.js`. Import that file as-is (copy it into the game repo, or fetch it; keep it as the single source). Shapes below are verified against the real file.
+
+### `window.LEVELS` — the tier map (≈ JLPT N5→N3)
+
+```js
+window.LEVELS = [
+  {
+    id: "L1", name: "Level 1", title: "Foundations",
+    blurb: "Survival Japanese — greetings, shopping & daily life · N5",
+    tiers: [
+      { name: "Beginner",     blurb: "...", themes: ["First contact", "Getting things"] },
+      { name: "Intermediate", blurb: "...", themes: ["Doing things", "Daily life"] },
+      // ...
+    ],
+  },
+  // L2..L5
+];
+```
+
+- A **theme** is a string. It joins `LEVELS` to `LESSONS` via `lesson.section === theme`.
+- Difficulty ordering for stage unlocks = `LEVELS` array order (L1 easiest → L5 hardest), then tier order within a level.
+
+### `window.LESSONS` — the content (58 lessons)
+
+```js
+window.LESSONS = [
+  {
+    id: "intro",
+    section: "First contact",     // <-- matches a theme string in LEVELS
+    title: "Hello & introductions",
+    grammar: "X は Y です  ·  か",
+    grammarNote: "...",
+    vocab: [ { jp, romaji, en, pos }, ... ],
+    sentences: [
+      {
+        en: "I am Tom.",
+        jp: "わたしはトムです。",
+        romaji: "watashi wa tomu desu.",
+        hint: "...",                 // optional
+        words: [                     // <-- THE KEY FIELD. pre-tokenized, ordered.
+          { jp: "わたし", en: "I",       pos: "n"   },
+          { jp: "は",     en: "[topic]", pos: "prt" },
+          { jp: "トム",   en: "Tom",     pos: "n"   },
+          { jp: "です",   en: "am",      pos: "cop" },
+        ],
+      },
+      // ...
+    ],
+  },
+  // ...
+];
+```
+
+### `words[].pos` — the complete tag set (verified counts, whole corpus)
+
+|pos   |meaning              |count|game role                                |
+|------|---------------------|-----|-----------------------------------------|
+|`n`   |noun                 |337  |socketable role word                     |
+|`prt` |**particle**         |257  |**the connectors — core of the minigame**|
+|`v`   |verb                 |219  |the **center** of the socket puzzle      |
+|`cop` |copula (です etc.)     |101  |sentence-final, treated as fixed tail    |
+|`adj` |adjective            |80   |socketable / modifier                    |
+|`aux` |auxiliary (ください, ます…)|60   |sentence-final-ish                       |
+|`adv` |adverb               |30   |free-floating                            |
+|`expr`|set expression       |33   |whole-phrase, not socketed               |
+|`conj`|conjunction          |20   |connector                                |
+
+### `pos: "prt"` — the actual particle inventory (verified)
+
+These are the ONLY particles that appear in the corpus, by frequency. The minigame’s particle picker must draw distractors from THIS set (don’t invent particles the learner hasn’t seen):
+
+```
+を(51) は(45) か(43) に(35) が(29) で(20) の(8) と(8)
+まで(5) よ(2) も(2) な(2) って(2) ぐらい(2) より(1) ね(1) から(1)
+```
+
+**Note:** `か`, `よ`, `ね` are sentence-final/mood particles, not role-markers. Tag particles into two functional buckets at index time (see §4.3): **role-markers** (は が を に で と へ から まで の も) vs **sentence-final** (か よ ね な って). The socket puzzle only sockets role-markers; sentence-final particles render as a fixed tail.
+
+### Content index to build at load
+
+Build once on boot:
+
+```js
+// flat list of every sentence, tagged with its origin for stage filtering
+sentences = [
+  {
+    sid,                 // stable id: `${lessonId}#${sentenceIndex}`
+    lessonId, section,   // section = theme string
+    levelId, tierName,   // resolved via LEVELS lookup
+    en, jp, romaji, hint,
+    words,               // the array above
+    // derived:
+    roleWords,           // words that get socketed (n/adj/adv content words preceding a role-marker)
+    particles,           // ordered role-markers used, e.g. ["は","を"]
+    verb,                // the v/cop/aux that anchors the sentence (usually last content slot)
+    difficulty,          // int: # of role-markers + length heuristic (for ramping)
+  },
+  ...
+]
+```
+
+Also build `wordPool` per stage = the set of unique `{jp,en,pos}` across that stage’s sentences (the pickup spawn table).
+
+-----
+
+## 2. Core gameplay (Vampire Survivors clone — get this right first)
+
+Faithful VS clone. If a behavior isn’t specified here, **default to how Vampire Survivors does it.**
+
+- **Input:** movement ONLY. Desktop = WASD/arrows or hold-mouse-to-move-toward-cursor. Mobile = virtual joystick (drag anywhere on left half of screen). Unify via Phaser pointer/keyboard input. There is **no aiming and no attack button** — weapons auto-fire.
+- **Player:** stays roughly centered; world/camera scrolls. Has HP. Takes contact damage from enemies.
+- **Auto-attack:** the equipped weapon(s) fire automatically on a timer toward nearest/relevant enemies. Upgrades increase damage, fire rate, count, area, add new weapons, and add passive auras around the player.
+- **Enemies:** spawn from screen edges in escalating waves over a ~15–20 min run. Density ramps over time. See §6 bestiary for archetypes (each archetype = a movement AI).
+- **XP:** killed enemies drop XP gems; collect by proximity. XP bar fills → **level-up** (triggers §4).
+- **Run end:** boss spawns near the end of the run; defeating it = run clear → meta rewards + potential stage unlock.
+- **Death:** run ends, return to meta screen.
+
+**Juice (do not skip — this is “flashy pixel art”):** screenshake on big hits, hit-flash (tint white 1 frame), particle bursts on kills, XP-gem magnet sparkle, number popups, additive-blend glow on attacks, satisfying level-up freeze-frame with a vignette/zoom. Pixel-art sprites, sprite-sheet animation.
+
+-----
+
+## 3. Word collection (feeds the minigame)
+
+- **Floor pickups:** rare, glowy word-tokens spawn on the ground (NOT every pickup — most ground drops are XP gems; word-tokens are loot-rare, like VS chests). Walking over one: adds `{jp,en,pos}` to the **run’s collected-word pool**, plays the word’s audio if available (fall back to device TTS), shows a brief floating JP+EN label.
+- **Merch-Mule enemies:** a dedicated trash-mob type that, on death, drops a word-token. This gives the swarm purpose — players hunt Mules for vocab.
+- **Collected pool is run-only.** It resets every run. It is the ONLY source the level-up minigame draws sentences from (with one fallback, §4.5).
+- Spawn the stage’s `wordPool` weighted so the player tends to collect words that can actually *form* sentences together (bias toward words from the same sentences). Avoid handing out 12 unrelated nouns and no verb.
+
+-----
+
+## 4. ★ THE CENTERPIECE: Particle-Socket Level-Up Minigame ★
+
+This is the heart of the game and the reason it teaches. Build it carefully.
+
+### 4.1 When it fires
+
+On level-up, freeze combat (pause physics, dim background, zoom slightly). Instead of VS’s “pick 1 of 3 upgrades,” present **one sentence-construction challenge**. The player’s performance grades the upgrade they receive.
+
+### 4.2 The visual model (from the SOV diagram)
+
+Japanese is verb-final; particles socket each role onto the verb. Render the puzzle as a **radial/orbital layout**:
+
+- **Center:** the target sentence’s **verb** (or copula), shown fixed.
+- **Around it:** the collected **role words** that belong in this sentence, as draggable chips, in scrambled positions.
+- **Below:** the **English prompt** (the `en` field) — this is what they’re translating. Never show the JP answer.
+- The player’s job: attach each role word to the verb **through the correct particle**, building toward the verb-last order.
+
+This is NOT generic left-to-right chip ordering. The particle choice is the skill.
+
+### 4.3 The three difficulty tiers (ramps within a run AND across stages)
+
+Pick the tier based on `min(wordsCollectedSoFar, sentence.difficulty, stageTier)` so early level-ups are trivial and late ones are full sentences. This also solves the “not enough words collected yet” cold-start problem.
+
+**Tier A — Particle-only (early run / N5):**
+The role words are already placed in correct order. ONE particle slot is blank between two words. Player picks the right particle from a small set of distractors drawn from the §1 role-marker inventory (e.g. は vs が vs を). This is the single highest-value Japanese drill — make it the bread and butter.
+
+**Tier B — Place + particle (mid):**
+Role words are scrambled. Player drags each into position AND picks its particle. Verb is pre-placed at center/end.
+
+**Tier C — Full assembly (late run / higher stages):**
+Full scramble including decoy words that don’t belong, verb-last enforced (placing a non-verb after the verb is rejected with feedback), multiple role-markers, particle distractors active on every socket.
+
+### 4.4 Deriving the puzzle from a sentence’s `words[]`
+
+Given a chosen sentence’s `words` array:
+
+```
+1. Walk words[] left to right.
+2. Identify the verb anchor: the last word with pos in {v, cop, aux}. That's the center.
+3. Identify role-markers: words with pos="prt" that are in the role-marker bucket
+   (は が を に で と へ から まで の も). Each role-marker binds the immediately
+   preceding content word(s) (n/adj/adv) into a role.
+4. Sentence-final particles (か よ ね な って) → render as a fixed, non-interactive tail
+   after the verb. Do not make the player socket these; just display them.
+5. expr-tagged words → treat as atomic whole phrases, not socketed.
+6. The correct answer is the original words[] order. Grade against it.
+```
+
+**Verb-less sentences (IMPORTANT — ~28 of 328 sentences have no v/cop/aux):** Japanese frequently omits the verb — adjective-only (`おいしそう！`), noun lists (counting), copula-dropped casual lines (`だいじょうぶ？`), adjective comparisons (`これが いちばん やすい`). The minigame must NOT assume a verb exists. Anchor fallback order: **last `v`/`cop`/`aux` → else last `adj` → else last content word.** If a sentence has no role-markers at all (e.g. a number list, or a single `expr`/`adj`), do not force a socket puzzle — serve it as a simpler “tap the words in order” or “pick the right word for this meaning” challenge instead. Never let a verb-less sentence break the puzzle generator; degrade gracefully to an easier challenge type.
+
+**Known content exception:** the sentence `because#4` (“Why? — Because it’s tasty.” / `どうして？ — おいしいから。`) has a `words[]` array that omits `どうして`, so it does not rebuild the full `jp`. Treat any sentence where `words[]` doesn’t concatenate to `jp` as ineligible for the puzzle (skip it as a target; it can still spawn its words as pickups). The content-audit tool (§11) reports these; do not crash on them.
+
+**Particle distractor generation:** for each correct role-marker, offer it plus 1–3 plausible wrong ones from the role-marker inventory. Prioritize the classic confusions as distractors: は↔が, を↔は, に↔で, に↔へ. Difficulty tier controls how many distractors.
+
+### 4.5 Sentence selection (run-only with fallback)
+
+```
+candidateSentences = stage.sentences.filter(s =>
+   every role-word in s.words is present in the run's collectedPool
+)
+if candidateSentences is empty:
+   fallback → relax to "verb + at least one collected role word present",
+             fill missing chips from collectedPool as decoys
+if STILL empty (very early, tiny pool):
+   serve a Tier-A particle-only puzzle on the simplest stage sentence,
+   regardless of collection (cold-start grace)
+```
+
+Prefer the sentence that uses the **most** collected words (rewards collecting) and matches the current difficulty tier.
+
+### 4.6 Grading → reward scaling (the hook)
+
+Map performance to the SRS-style three-grade scale Hanasou already uses (nope / kinda / got it), and scale the upgrade:
+
+|Result    |Condition                                               |Reward                                                                   |
+|----------|--------------------------------------------------------|-------------------------------------------------------------------------|
+|**Got it**|all particles + order correct, first try                |**Full** upgrade (e.g. +3 weapon levels / the evolved pick)              |
+|**Kinda** |correct but used a retry, or 1 particle wrong then fixed|**Partial** (e.g. +1 level)                                              |
+|**Nope**  |gave up / timed out / submitted wrong                   |**Minimal** but NEVER nothing (e.g. the upgrade at base, or a small heal)|
+
+**CRITICAL framing rule:** the baseline reward is already decent; correctness is a **bonus on top**, never a penalty. UI copy must read “Perfect! +FULL POWER” on success, not “Wrong — nerfed.” Same numbers, opposite emotion. Do **not** let a wrong answer feel like it taxed the run, or players stop engaging with the Japanese. There is also **no run-ending fail state** in the minigame — it can only make you stronger by varying degrees.
+
+Record the grade per `sid` to the SRS store (§7) so missed sentences come back.
+
+### 4.7 Audio
+
+Play the sentence audio (or device TTS fallback) on a correct solve, and on each chip placement play that word’s audio. Reinforces sound↔form.
+
+-----
+
+## 5. Stages = curriculum (config-driven)
+
+A stage is a plain config object. Adding content = adding a config + art, never touching core code.
+
+```js
+const STAGES = [
+  {
+    id: "arcade",
+    name: "The Arcade",
+    // content filter: which Hanasou content feeds this stage
+    content: { levelIds: ["L1"], tiers: ["Beginner", "Intermediate"] }, // → resolves to themes → sentences
+    tileset: "arcade",            // pixel bg + palette
+    music: "...",
+    enemyTable: ["RushFan","AnxiousOne","MerchMule","CameraGremlin"], // §6 keys + spawn weights
+    spawnCurve: "...",            // density over time
+    boss: "ultimate_collector",
+    unlock: { requires: null },   // first stage, always unlocked
+  },
+  {
+    id: "themepark",
+    name: "The Theme Park",
+    content: { levelIds: ["L3"], tiers: ["Getting around"] }, // travel/transaction content
+    // ...
+    unlock: { requires: "clear:arcade" },
+  },
+  // future: maid café, akihabara, station, comiket...
+];
+```
+
+- `content` resolves through `LEVELS` → theme strings → `LESSONS.filter(section ∈ themes)` → that stage’s sentence + word pool.
+- Stage unlock order should track `LEVELS` difficulty so progressing stages = advancing JLPT tiers. Unlocking a stage is the meta-progression carrot.
+
+-----
+
+## 6. Characters & enemies
+
+### Characters (combat flavor ONLY — no content gating)
+
+Playable girls = VS-style identity: starting weapon + passive + playstyle. They do **not** filter or restrict Japanese content (stages do that). Unlockable via meta-progression.
+
+- **VTuber** — fast, wide-spread projectiles.
+- **Cosplayer** — tanky, short-range melee sweep.
+- **Idol** — rhythmic pulsing AoE.
+
+### Enemies (behavior = AI; the comedy is in movement, never body type)
+
+Each archetype is defined by a movement rule + combat quirk + visual tell so the swarm is readable at a glance. ~70% of the swarm should be plain fodder; personality types are seasoning.
+
+|key            |name            |behavior (AI)                                 |quirk                                              |
+|---------------|----------------|----------------------------------------------|---------------------------------------------------|
+|`RushFan`      |Rushing Fan     |straight beeline at player (fodder bulk)      |basic                                              |
+|`AnxiousOne`   |The Anxious One |rushes in, then flees before contact          |baits aim, wastes attacks                          |
+|`TooCool`      |The Too-Cool One|runs at player **backwards**, hands in pockets|slow, ignores weak hits; brief untargetable “glint”|
+|`CameraGremlin`|Camera Gremlin  |stops at range, “flashes”                     |flash whites out a screen region briefly           |
+|`IdolWota`     |Idol-Wota       |rhythmic side-to-side concert sway            |hard to pin/hit                                    |
+|`Lurker`       |Lurker          |hangs at edge, barely approaches              |powers up if ignored too long                      |
+|`Glomper`      |Glomper         |slow, large, tanky                            |latches on contact, slows player                   |
+|`MerchMule`    |Merch-Mule      |wanders, evasive                              |**drops a word-token on death**                    |
+
+### Bosses (named characters; joke is the obsession, not the appearance)
+
+One per stage, e.g. **“The Ultimate Collector”** — over-the-top super-fan with an absurd goal and a multi-phase fight. Write personality; never make body type the gag.
+
+-----
+
+## 7. Persistence, SRS flavor & meta
+
+- **localStorage** for: unlocked stages, unlocked characters, meta-currency, high scores, and an **SRS record per `sid`** (`{reps, ease, interval, due, lapses}` — mirror Hanasou’s algorithm so the data is portable).
+- **SRS-as-spawn-director (“haunting”):** sentences/words the player has graded **nope/kinda** are weighted to reappear — both as preferred level-up puzzles in future runs AND, thematically, as **“haunting” word-pickups** that pulse red and lightly chase the player. The word you forgot literally hunts you until you collect + pass it. This is the spaced-repetition system reskinned as a mechanic.
+- Meta-currency earned from runs (scaled by performance, incl. minigame grades) unlocks characters and permanent passives (slower spawns, longer minigame timer, auto-reveal first particle, etc.). Make some meta-upgrades *learning scaffolds* (e.g. “show romaji on chips”) so progression and pedagogy align.
+
+-----
+
+## 8. Hard guardrails (write these into the code’s intent)
+
+1. **The minigame must require knowing the Japanese, not pattern-matching.** Never show the JP answer during the puzzle (English/audio prompt only). Particle distractors must be from the real seen inventory. POS chip colors may be shown but must NOT be sufficient to solve — if a player can win by color-matching alone, the design has failed.
+1. **No run-ending fail in the minigame.** It only scales rewards upward by degree. Wrong = smaller bonus, framed as bonus-missed, never as punishment.
+1. **Combat is auto; learning is the level-up.** Do not turn moment-to-moment combat into a quiz. The contrast (frantic → calm think → frantic) is the design.
+1. **Content is consumed, not authored.** All Japanese comes from `lessons.js`. Don’t hardcode sentences in the game.
+1. **Both platforms, day one.** Every input and UI must work on touch (mobile) and mouse/keyboard (desktop). The minigame’s drag interactions especially.
+1. **Stages and characters are data, not code.** New stage/character = new config object + assets.
+1. **★ Content is plug-and-play and verification NEVER blocks it.** The game reads `lessons.js` directly and runs on whatever content is present, at any time, with zero pre-processing or validation step required. The audit/export tools in §11 are **read-only side tools** that observe the content — they are NOT a pipeline the content must pass through, NOT a gate, NOT a build dependency. Dropping in new/updated words or sentences must require nothing more than editing `lessons.js`. If a single entry is malformed, the game skips that one entry gracefully (per §4.4) and keeps running — one bad sentence never blocks the other 327.
+
+-----
+
+## 9. Suggested file/scene structure (Phaser + Vite)
+
+```
+src/
+  main.js                 # Phaser config, scene registry
+  data/
+    lessons.js            # copied from Hanasou (source of truth)
+    contentIndex.js       # builds sentences[] + per-stage wordPool from LESSONS/LEVELS
+    stages.js             # STAGES config array
+    characters.js         # character configs
+    particles-meta.js     # role-marker vs sentence-final buckets, distractor tables
+  scenes/
+    BootScene.js
+    MetaScene.js          # stage/character select, unlocks, meta-shop
+    RunScene.js           # the VS gameplay loop
+    LevelUpScene.js       # ★ particle-socket minigame (overlay, pauses RunScene)
+    BossScene.js          # (or boss logic inside RunScene)
+  systems/
+    movement.js
+    spawner.js            # enemy waves from stage.enemyTable + spawnCurve
+    weapons.js            # auto-attack + upgrade tree
+    pickups.js            # XP gems + word-tokens + haunting requeue
+    srs.js                # mirror Hanasou's algorithm; persistence
+  entities/
+    enemies/              # one file per archetype AI
+    player.js
+  ui/ , audio/ , assets/
+```
+
+-----
+
+## 10. Definition of “vertical slice done” (the first milestone to hit)
+
+A single playable run on **The Arcade** stage where: you move and auto-kill a swarm of RushFans + MerchMules, collect word-tokens, hit a level-up that opens the **Tier-A particle-only** minigame drawn from your collected words, your answer scales the upgrade with correct (bonus-framed) feedback, and you keep playing stronger. Everything else (more stages, characters, bosses, Tiers B/C, haunting, meta-shop) builds outward from that proven core.
+
+-----
+
+## 11. Content verification tools (STANDALONE — must never block the game)
+
+These are two small **offline command-line scripts** that live in a `tools/` folder and run on demand. **Read this first:** they are read-only observers of `lessons.js`. They are NOT part of the build, NOT a pre-flight check, NOT something the game waits on. The game ships and runs whether or not these have ever been run. Their only job is to make human review cheap. Build them last (after the vertical slice), or skip until asked — they are not on the critical path.
+
+The content-correctness strategy is: **machine catches mechanical errors → human (a fluent Japanese teacher) catches naturalness.** Don’t make the human proofread typos a script can find; don’t make a script judge naturalness it can’t.
+
+### 11.1 `tools/audit-content.js` — offline JMdict mechanical check
+
+A Node script that validates `lessons.js` against the **JMdict dictionary already bundled in Hanasou’s `vendor/`** (JMdict is the same dataset Jisho.org is built on — no network needed, and external dictionary APIs like jisho.org are not reliably reachable anyway). It:
+
+1. Loads JMdict from `vendor/` (reuse Hanasou’s existing loader/format).
+1. For every `words[]` entry across all lessons:
+- **Existence:** does `w.jp` exist as a JMdict headword or reading? Flag if not found.
+- **Gloss sanity:** does `w.en` overlap *any* JMdict sense gloss for that word? Flag if zero overlap (likely mistranslation). Skip this check for `pos:"prt"` and `pos:"expr"` (particles/set-phrases have grammatical glosses like `[topic]` that won’t match a dictionary).
+- **POS agreement:** does `w.pos` roughly agree with JMdict’s POS? Flag clear disagreements (e.g. tagged `n` but JMdict only has it as a verb).
+1. **Structural checks** (no dictionary needed): every sentence’s `words[]` concatenates to its `jp` (flag mismatches like `because#4`); romaji present; no empty fields; valid pos tags; every `lesson.section` maps to a `LEVELS` theme.
+1. **Output:** a CSV/console report of ONLY the flagged items (`sid`, field, value, reason). A clean run prints “N sentences, M words, X flags.” It changes nothing and writes no game files.
+
+This is a triage tool — expect a few dozen flags total, most being false positives on particles/expressions. Its purpose is to shrink what the human reviews, not to gate anything.
+
+### 11.2 `tools/export-review-sheet.js` — human-review export
+
+A Node script that dumps all content into a **flat, teacher-friendly review sheet** (CSV, openable in Excel/Sheets — or `.xlsx` if easy). One row per sentence:
+
+|column                |source                                    |
+|----------------------|------------------------------------------|
+|`sid`                 |`${lessonId}#${index}`                    |
+|`level / tier / theme`|resolved via LEVELS                       |
+|`grammar point`       |`lesson.grammar`                          |
+|English               |`sentence.en`                             |
+|Japanese              |`sentence.jp`                             |
+|Romaji                |`sentence.romaji`                         |
+|Word breakdown        |`words[]` rendered as `jp(en)[pos]` joined|
+|**Teacher notes**     |**empty column for corrections**          |
+|**OK? (Y/N)**         |**empty column**                          |
+
+The teacher reviews this sheet for the things no script can judge: **particle correctness in context, naturalness, register (casual vs polite), and translation nuance.** Corrections then flow back into `lessons.js` by hand (or via a small importer later if volume warrants). The teacher never touches source code.
+
+### 11.3 The verification flow (for the README, so the human steps are clear)
+
+```
+build structure → confirm words plug in & game runs
+        │  (game is fully functional from here — everything below is optional polish)
+        ├─ run tools/audit-content.js   → clears mechanical errors (machine)
+        ├─ run tools/export-review-sheet.js → hand sheet to fluent teacher (human)
+        └─ fold corrections back into lessons.js → both apps pick them up automatically
+```
+
+Nothing in this flow is a prerequisite for shipping or playing. It runs whenever you want a content-quality pass, as many times as you want, on whatever content is in `lessons.js` at the time.
