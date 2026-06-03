@@ -1,0 +1,28 @@
+# Cover note for Claude Code — Otaku Hunter
+
+I’m building a new game called **Otaku Hunter** — a Vampire Survivors–style auto-battler that teaches Japanese through a sentence-building minigame on the level-up screen. The full spec is in the attached **`otaku-hunter-claude-code-brief.md`** — read it first; it’s the source of truth.
+
+## Files I’m giving you
+
+- **`otaku-hunter-claude-code-brief.md`** — the full implementation brief. Read this first.
+- **`lessons.js`** — the Japanese content (from my other app, Hanasou). The game consumes this directly; copy it into the game repo. Its exact data shape is documented in §1 of the brief, but work from the real file.
+- **`jp-my-car.webp`** — the Japanese sentence-structure (SOV) diagram. This is the visual model for the centerpiece particle-socket minigame (brief §4.2). Build the radial/orbital layout to match it: verb in the center, role words orbiting, particles as the connectors.
+- *(Art assets / style bible coming later from Claude Design — sprites aren’t blocking the first milestone; use placeholder rectangles/shapes until I provide art.)*
+
+## Project decisions (so you don’t have to guess)
+
+- **Repo:** This is a brand-new project, completely separate from Hanasou. The only shared thing is `lessons.js` (the content). Scaffold it fresh. <!-- EDIT if you've already created a repo / want it elsewhere -->
+- **Language:** TypeScript. <!-- change to JavaScript if you prefer -->
+- **Engine/build:** Phaser 3 + Vite, web build, must run on desktop AND mobile browsers, PWA-installable.
+- **Deployment:** GitHub Pages. <!-- change if hosting elsewhere; affects Vite `base` config -->
+- **Audio:** Start with device-TTS fallback only (Web Speech API). I’ll wire in pre-generated audio clips later — don’t block on audio assets.
+- **JMdict / content-audit tool (brief §11):** The audit script depends on the JMdict dictionary in Hanasou’s `vendor/` folder, which is NOT in this repo. **Defer building the §11 verification tools entirely until I point you at JMdict.** They are optional side tools and explicitly NOT on the critical path — see brief §8 rule 7 and §11. Do not let anything about content verification block or gate the game.
+
+## How I want you to work
+
+1. **Build the §10 vertical slice FIRST, then STOP for my review before expanding.** That’s: one playable Arcade run — move + auto-attack a swarm (RushFans + MerchMules), collect word-pickups, hit a level-up that opens the Tier-A particle-only minigame drawn from collected words, answer scales the upgrade with bonus-framed feedback, keep playing. Placeholder art is fine.
+1. Do **not** sprint ahead to multiple stages, characters, bosses, or Tiers B/C until I’ve played the slice and confirmed direction.
+1. Respect the hard guardrails in brief §8 — especially: combat is auto / learning is the level-up; no run-ending fail in the minigame; the minigame must require knowing the Japanese (not color/shape matching); content is plug-and-play and verification never blocks the game.
+1. If a content entry is malformed, skip that one entry gracefully and keep running — never let one bad sentence break the game.
+
+Start by reading the brief, then scaffold the project and confirm your plan for the vertical slice before writing gameplay code.
