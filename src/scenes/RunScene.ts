@@ -18,6 +18,7 @@ import { ARCHETYPES, type EnemyData } from '../entities/enemies/archetypes';
 import { PlayerLoadout } from '../systems/loadout';
 import { speakJa } from '../audio/tts';
 import { beginRun } from '../systems/srs';
+import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
 
 const WORLD = 4000;
 const WORD_DROP_CHANCE = 0.18;
@@ -47,6 +48,7 @@ export class RunScene extends Phaser.Scene {
   private hpBarFill!: Phaser.GameObjects.Rectangle;
 
   private dir = new Phaser.Math.Vector2();
+  private facing: Cardinal = 'down';
 
   private level = 1;
   private xp = 0;
@@ -87,6 +89,7 @@ export class RunScene extends Phaser.Scene {
     this.collectedSet = new Set();
     this.recentSids = [];
     this.recentParticles = [];
+    this.facing = 'down';
   }
 
   create(data: { stageId?: string }) {
@@ -98,7 +101,7 @@ export class RunScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WORLD, WORLD);
     this.drawBackground();
 
-    this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, TEX.player);
+    this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(TEX.player, 'down'));
     this.player.setCircle(PLAYER.radius, 0, 0);
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(50);
@@ -158,16 +161,19 @@ export class RunScene extends Phaser.Scene {
     const arc = ARCHETYPES[key];
     if (!arc) return;
     const st = enemyStatsAt(key, this.elapsed);
-    const e = this.enemies.get(x, y, arc.texture) as Sprite | null;
+    const e = this.enemies.get(x, y, dirTextureKey(arc.texture, 'down')) as Sprite | null;
     if (!e) return;
-    e.setTexture(arc.texture);
     e.enableBody(true, x, y, true, true);
     e.setCircle(9, 0, 0);
     e.setScale(1);
+    e.setFlipX(false);
     e.setDepth(40);
     e.clearTint();
     e.setData('speed', st.speed);
     e.setData('tint', undefined);
+    e.setData('face', 'down');
+    e.setData('faceSet', ''); // force applyFacing to refresh this recycled sprite
+    e.setData('faceState', '');
     const edata: EnemyData = {
       archetype: arc,
       hp: st.hp,
@@ -182,16 +188,19 @@ export class RunScene extends Phaser.Scene {
   private spawnBoss() {
     this.bossSpawned = true;
     const arc = ARCHETYPES.UltimateCollector;
-    const e = this.enemies.get(this.player.x, this.player.y - 360, arc.texture) as Sprite | null;
+    const e = this.enemies.get(this.player.x, this.player.y - 360, dirTextureKey(arc.texture, 'down')) as Sprite | null;
     if (!e) return;
-    e.setTexture(arc.texture);
     e.enableBody(true, this.player.x, this.player.y - 360, true, true);
     e.setScale(5);
     e.setCircle(9, 0, 0);
+    e.setFlipX(false);
     e.setDepth(48);
     e.setTint(0xc44dff);
     e.setData('speed', BOSS.speed);
     e.setData('tint', 0xc44dff);
+    e.setData('face', 'down');
+    e.setData('faceSet', '');
+    e.setData('faceState', '');
     const edata: EnemyData = {
       archetype: arc,
       hp: BOSS.hp,
@@ -237,7 +246,7 @@ export class RunScene extends Phaser.Scene {
       this.runClear();
       return;
     }
-    this.burst(x, y, ed.archetype.texture === TEX.merchMule ? COLORS.merchMule : COLORS.rushFan);
+    this.burst(x, y, ed.archetype.color);
     this.dropGem(x, y, ed.xp);
     if (ed.archetype.dropsWord || Math.random() < WORD_DROP_CHANCE) this.dropWord(x, y);
     e.disableBody(true, true);
@@ -453,16 +462,24 @@ export class RunScene extends Phaser.Scene {
     this.elapsed += dt;
     const stats = this.loadout.stats();
 
-    // movement
+    // movement + 4-direction facing
     this.controls.getDirection(this.dir);
     const speed = PLAYER_BASE.moveSpeed * stats.moveSpeed;
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(this.dir.x * speed, this.dir.y * speed);
+    const moving = this.dir.x !== 0 || this.dir.y !== 0;
+    this.facing = vectorToCardinal(this.dir.x, this.dir.y, this.facing);
+    applyFacing(this.player, TEX.player, this.facing, moving ? 'walk' : 'idle');
 
-    // enemy AI
+    // enemy AI + facing (from their resulting velocity)
     for (const obj of this.enemies.getChildren()) {
       const e = obj as Sprite;
       if (!e.active) continue;
-      (e.getData('edata') as EnemyData).archetype.ai(e, this.player, delta);
+      const arc = (e.getData('edata') as EnemyData).archetype;
+      arc.ai(e, this.player, delta);
+      const body = e.body as Phaser.Physics.Arcade.Body;
+      const face = vectorToCardinal(body.velocity.x, body.velocity.y, (e.getData('face') as Cardinal) ?? 'down');
+      e.setData('face', face);
+      applyFacing(e, arc.texture, face, 'walk');
     }
 
     // weapons

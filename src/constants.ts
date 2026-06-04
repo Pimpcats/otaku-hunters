@@ -27,10 +27,14 @@ export const COLORS = {
 } as const;
 
 // Texture keys for the placeholder art generated at boot.
+// Character textures are BASE keys; the real per-facing textures are
+// `${base}_down|_up|_side` (see systems/facing.ts). Pickups/projectiles are
+// single, non-directional textures.
 export const TEX = {
-  player: 'tex_player',
-  rushFan: 'tex_rushfan',
-  merchMule: 'tex_merchmule',
+  player: 'char_player',
+  rushFan: 'char_rushfan',
+  merchMule: 'char_merchmule',
+  boss: 'char_boss',
   bullet: 'tex_bullet',
   xp: 'tex_xp',
   word: 'tex_word',

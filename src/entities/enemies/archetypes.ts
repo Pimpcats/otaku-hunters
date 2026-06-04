@@ -4,14 +4,15 @@
 // behaviour-only and data-driven.
 
 import Phaser from 'phaser';
-import { TEX } from '../../constants';
+import { TEX, COLORS } from '../../constants';
 
 export type EnemySprite = Phaser.Physics.Arcade.Sprite;
 
 export interface EnemyArchetype {
   key: string;
   name: string;
-  texture: string;
+  texture: string; // BASE key; real textures are `${texture}_down|_up|_side`
+  color: number; // death-burst tint
   dropsWord: boolean; // always drops a word-token on death (brief §3)
   ai: (e: EnemySprite, player: Phaser.GameObjects.Components.Transform, dt: number) => void;
 }
@@ -40,6 +41,7 @@ export const ARCHETYPES: Record<string, EnemyArchetype> = {
     key: 'RushFan',
     name: 'Rushing Fan',
     texture: TEX.rushFan,
+    color: COLORS.rushFan,
     dropsWord: false,
     ai: (e, player) => moveToward(e, player.x, player.y, e.getData('speed')),
   },
@@ -50,6 +52,7 @@ export const ARCHETYPES: Record<string, EnemyArchetype> = {
     key: 'MerchMule',
     name: 'Merch-Mule',
     texture: TEX.merchMule,
+    color: COLORS.merchMule,
     dropsWord: true,
     ai: (e, player, dt) => {
       const d = e.getData('edata') as EnemyData;
@@ -74,7 +77,8 @@ export const ARCHETYPES: Record<string, EnemyArchetype> = {
   UltimateCollector: {
     key: 'UltimateCollector',
     name: 'The Ultimate Collector',
-    texture: TEX.merchMule,
+    texture: TEX.boss,
+    color: COLORS.word,
     dropsWord: false,
     ai: (e, player) => moveToward(e, player.x, player.y, e.getData('speed')),
   },
