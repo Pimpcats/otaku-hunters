@@ -4,10 +4,15 @@
 // Pure data + pure functions only (NO Phaser imports) so the balance simulator
 // (tools/balance-sim.ts) and the live game consume the exact same numbers.
 //
-// Design philosophy (faithful to Vampire Survivors, original values):
-//  • Stat buckets stack ADDITIVELY within a stat (+10% Might per level →
-//    1 + 0.10·level), and MULTIPLICATIVELY across different stats.
+// Design philosophy (faithful to Vampire Survivors, ported from the real game
+// data — see src/data/vs-reference.ts for the verbatim source values):
+//  • Stat buckets stack ADDITIVELY within a stat (+5% Might per level →
+//    1 + 0.05·level), and MULTIPLICATIVELY across different stats.
 //    Final damage = weaponBaseDamage(weaponLevel) · Might.
+//  • The Japanese-learning level-up puzzle is a FIRST-CLASS part of this model,
+//    not a VS feature we're replacing: every upgrade is still gated behind a
+//    particle/build/translate drill (see LevelUpScene), and the grade scales
+//    the stacks applied (GRADE_STACKS). Keep that loop intact in any port.
 //  • Enemies scale on a TIME curve: HP/contact/speed/XP climb every minute and
 //    spawn density rises, so minute 0 = one-shots, 20:00 = a tense wall.
 //  • Boss ("The Ultimate Collector") arrives at 20:00 as the run's climax.
@@ -30,6 +35,7 @@ export const PLAYER_BASE = {
 
 // ── Passive stat upgrades (the additive % buckets) ───────────────────────────
 export type StatId =
+  // ── Wired into gameplay (consumed by weapons.ts / RunScene) ──
   | 'might'
   | 'haste'
   | 'amount'
@@ -38,23 +44,41 @@ export type StatId =
   | 'moveSpeed'
   | 'maxHp'
   | 'regen'
-  | 'magnet';
+  | 'magnet'
+  // ── Ported from VS, NOT yet wired (inert until their systems exist) ──
+  | 'armor' // flat incoming-damage reduction → onPlayerHit
+  | 'growth' // XP-gain multiplier → gem/word pickup
+  | 'greed' // gold-gain multiplier → (no economy yet)
+  | 'luck' // luck multiplier → drop rolls
+  | 'curse' // enemy-stat multiplier → spawner/enemyStatsAt
+  | 'revival'; // extra revives → gameOver
 
 export interface PassiveSpec {
   perLevel: number;
   max: number;
 }
 
+// Values ported verbatim from the real Vampire Survivors PowerUp data
+// (see vs-reference.ts). VS MaxHealth is "+10% of base"; on our base-100 player
+// that is numerically +10 HP/level, kept as flat HP so the heal-on-pickup math
+// in loadout.ts stays simple.
 export const PASSIVES: Record<StatId, PassiveSpec> = {
-  might: { perLevel: 0.1, max: 5 }, // +10% damage / level
-  haste: { perLevel: 0.08, max: 5 }, // -8% cooldown / level
-  amount: { perLevel: 1, max: 3 }, // +1 projectile / level (all weapons)
-  area: { perLevel: 0.12, max: 5 }, // +12% size / level
-  projSpeed: { perLevel: 0.1, max: 5 }, // +10% projectile speed / level
-  moveSpeed: { perLevel: 0.08, max: 5 }, // +8% move speed / level
-  maxHp: { perLevel: 25, max: 5 }, // +25 max HP / level
-  regen: { perLevel: 0.5, max: 5 }, // +0.5 hp/s / level
-  magnet: { perLevel: 0.3, max: 5 }, // +30% pickup radius / level
+  might: { perLevel: 0.05, max: 5 }, // VS Might: +5% damage / level
+  haste: { perLevel: 0.025, max: 2 }, // VS Cooldown: -2.5% / level
+  amount: { perLevel: 1, max: 1 }, // VS Amount: +1 projectile (single rank)
+  area: { perLevel: 0.05, max: 2 }, // VS Area: +5% size / level
+  projSpeed: { perLevel: 0.1, max: 2 }, // VS Speed: +10% projectile speed / level
+  moveSpeed: { perLevel: 0.05, max: 2 }, // VS Move Speed: +5% / level
+  maxHp: { perLevel: 10, max: 3 }, // VS Max Health: +10% of base / level
+  regen: { perLevel: 0.1, max: 5 }, // VS Recovery: +0.1 hp/s / level
+  magnet: { perLevel: 0.25, max: 2 }, // VS Magnet: +25% pickup radius / level
+  // Ported but inert (see StatId note) — gated out of the live offer pool.
+  armor: { perLevel: 1, max: 3 }, // VS Armor: -1 incoming damage / level
+  growth: { perLevel: 0.03, max: 5 }, // VS Growth: +3% XP gain / level
+  greed: { perLevel: 0.1, max: 5 }, // VS Greed: +10% gold gain / level
+  luck: { perLevel: 0.1, max: 3 }, // VS Luck: +10% luck / level
+  curse: { perLevel: 0.1, max: 5 }, // VS Curse: +10% enemy stats / level
+  revival: { perLevel: 1, max: 1 }, // VS Revival: +1 resurrection
 };
 
 export interface DerivedStats {
@@ -67,6 +91,13 @@ export interface DerivedStats {
   maxHp: number; // absolute max HP
   regen: number; // hp/s
   magnet: number; // pickup radius multiplier
+  // Ported from VS — derived and ready to consume, but no system reads them yet.
+  armor: number; // flat incoming-damage reduction
+  growth: number; // XP-gain multiplier
+  greed: number; // gold-gain multiplier
+  luck: number; // luck multiplier
+  curse: number; // enemy-stat multiplier
+  revival: number; // number of extra revives
 }
 
 /** Fold a record of passive levels into concrete multipliers/values. */
@@ -82,6 +113,12 @@ export function deriveStats(levels: Partial<Record<StatId, number>>): DerivedSta
     maxHp: PLAYER_BASE.maxHp + PASSIVES.maxHp.perLevel * L('maxHp'),
     regen: PASSIVES.regen.perLevel * L('regen'),
     magnet: 1 + PASSIVES.magnet.perLevel * L('magnet'),
+    armor: PASSIVES.armor.perLevel * L('armor'),
+    growth: 1 + PASSIVES.growth.perLevel * L('growth'),
+    greed: 1 + PASSIVES.greed.perLevel * L('greed'),
+    luck: 1 + PASSIVES.luck.perLevel * L('luck'),
+    curse: 1 + PASSIVES.curse.perLevel * L('curse'),
+    revival: PASSIVES.revival.perLevel * L('revival'),
   };
 }
 
@@ -101,6 +138,13 @@ export interface WeaponDef {
   kind: 'projectile' | 'aura';
   maxLevel: number;
   level: (L: number) => WeaponLevelStats;
+  // VS-style evolution scaffolding (ported, not yet wired): at maxLevel, owning
+  // the required passive lets the weapon evolve into `evolvesTo`. The trigger
+  // logic (in loadout/LevelUpScene) is a follow-up — these fields just declare
+  // the relationship so the data is ready. Evolutions remain gated behind the
+  // Japanese-learning level-up, same as every other upgrade.
+  evolvesTo?: string; // weapon id of the evolved form
+  evolveRequires?: StatId; // passive that must be owned to evolve
 }
 
 export const WEAPONS: Record<string, WeaponDef> = {

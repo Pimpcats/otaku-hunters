@@ -4,22 +4,46 @@ All numbers live in **`src/data/balance.ts`** (a single, pure-data module with n
 Phaser imports). The game and the **simulator** (`tools/balance-sim.ts`) read the
 exact same values, so tuning is "edit one file, re-simulate, ship."
 
-This models Vampire Survivors' design faithfully with **original values** — we
-replicate the *system* (which isn't copyrightable), not their data tables.
+This models Vampire Survivors' design faithfully. The passive/weapon values are
+now **ported from the real VS data** (see the verbatim reference in
+**`src/data/vs-reference.ts`**) — we replicate the *system* (which isn't
+copyrightable) and use the real numbers as our starting point, then retune.
+
+> **Japanese first.** This is a language-learning game with a VS combat skeleton.
+> Every upgrade below is still earned by solving a Japanese drill on level-up
+> (`LevelUpScene`); the port keeps that loop fully intact.
 
 ## Power model (how upgrades stack)
 
 Like VS: bonuses are **additive within a stat bucket, multiplicative across
-buckets**.
+buckets**. Per-level values match the real VS PowerUp table:
 
 ```
 finalDamage = weaponBaseDamage(weaponLevel) × Might
-Might       = 1 + 0.10 × (level of Energy Drink)      // +10% per level
-Haste(cd)   = clamp(1 − 0.08 × level, 0.4, 1)          // cooldown multiplier
-Amount      = +1 projectile per level (all weapons)
-Area / ProjSpeed / MoveSpeed / Magnet = 1 + perLevel × level
-MaxHP       = 100 + 25 × level   ·   Regen = 0.5 × level hp/s
+Might       = 1 + 0.05 × (level of Energy Drink)       // VS: +5% per level, max 5
+Haste(cd)   = clamp(1 − 0.025 × level, 0.4, 1)         // VS Cooldown: −2.5%, max 2
+Amount      = +1 projectile (single rank, VS Amount max 1)
+Area(+5%,max2) / ProjSpeed(+10%,max2) / MoveSpeed(+5%,max2) / Magnet(+25%,max2)
+MaxHP       = 100 + 10 × level (max 3)  ·  Regen = 0.1 × level hp/s (max 5)
 ```
+
+### Ported but not yet wired
+
+Six VS passives are ported as data (`PASSIVES` in `balance.ts`, derived in
+`deriveStats`) but **inert** — they're gated out of the level-up offer pool
+(`wired: false` in `loadout.ts`) until their consuming system exists:
+
+| VS passive | Themed name | Effect | Wire into |
+|------------|-------------|--------|-----------|
+| Armor | Kotatsu Blanket | −1 damage taken | `onPlayerHit` |
+| Growth | Study Streak | +3% XP gain | gem/word pickup |
+| Greed | Gachapon Luck | +10% gold | (no economy yet) |
+| Luck | Maneki-neko | +10% luck | drop rolls |
+| Curse | Cursed Manga | +10% enemy stats | spawner / `enemyStatsAt` |
+| Revival | Extra Life | revive on death | `gameOver` |
+
+**Weapon evolutions** are scaffolded too (`evolvesTo` / `evolveRequires` on
+`WeaponDef`) but not triggered yet — the in-run evolve logic is a follow-up.
 
 Upgrades are chosen **1-of-3** on each level-up, and the **minigame grade scales
 how many stacks** the pick applies (correctness is a *bonus*, never a penalty —
@@ -81,8 +105,16 @@ enemy curve. **Target: "beatable but tense."**
 
 ## Boss — The Ultimate Collector (20:00)
 
-`HP 60,000`, contact 28, slow relentless beeline. A maxed 20-minute build does
-~1,800 single-target DPS → **~33-second fight**. Defeating it = **Stage Clear**.
+`HP 75,000`, contact 28, slow relentless beeline. Defeating it = **Stage Clear**.
+
+## ⚠ Rebalancing debt from the VS port
+
+Copying VS's (much tamer) passive numbers onto our raw-HP combat **nerfed the
+player's late game** — the enemy curve and boss HP were tuned for the old, more
+generous passives. Current sim reads `OVERWHELMED` at 19–20:00 and boss TTK ≈
+**100s** (target ~30–45s). This is expected "copy now, adjust as we go" debt; the
+next combat-tuning pass should soften `hpMult`/spawn density and/or lower boss HP
+to re-hit the "beatable but tense" band. Re-run the sim after any change.
 
 ## Re-running the simulator
 
