@@ -23,6 +23,7 @@ import {
   GRADE_STACKS,
   BOSS,
   RUN_LENGTH,
+  EVOLVE_MIN_LEVEL,
   type StatId,
   PASSIVES,
 } from '../src/data/balance';
@@ -75,8 +76,21 @@ function buildDps() {
   let single = 0;
   let clear = 0;
   for (const [id, L] of weapons) {
-    const def = WEAPONS[id];
-    const w = def.level(L);
+    let def = WEAPONS[id];
+    let lvl = L;
+    // VS-style evolution: a maxed weapon + maxed required passive, once the
+    // player is deep enough (EVOLVE_MIN_LEVEL), fights as its evolved form.
+    if (
+      def.evolvesTo &&
+      def.evolveRequires &&
+      L >= def.maxLevel &&
+      (stats[def.evolveRequires] ?? 0) >= PASSIVES[def.evolveRequires].max &&
+      level >= EVOLVE_MIN_LEVEL
+    ) {
+      def = WEAPONS[def.evolvesTo];
+      lvl = def.maxLevel;
+    }
+    const w = def.level(lvl);
     const dmg = w.damage * d.might;
     const cd = (w.cooldown * d.haste) / 1000;
     const shots = 1 / cd;

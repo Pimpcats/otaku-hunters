@@ -1,0 +1,24 @@
+name: CI
+
+# PR gate: typecheck + production build on every pull request (and on the
+# feature branches we develop on), so breakage is caught before it reaches the
+# main-only deploy workflow.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build

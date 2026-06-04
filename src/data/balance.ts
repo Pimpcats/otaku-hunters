@@ -4,10 +4,15 @@
 // Pure data + pure functions only (NO Phaser imports) so the balance simulator
 // (tools/balance-sim.ts) and the live game consume the exact same numbers.
 //
-// Design philosophy (faithful to Vampire Survivors, original values):
-//  • Stat buckets stack ADDITIVELY within a stat (+10% Might per level →
-//    1 + 0.10·level), and MULTIPLICATIVELY across different stats.
+// Design philosophy (faithful to Vampire Survivors, ported from the real game
+// data — see src/data/vs-reference.ts for the verbatim source values):
+//  • Stat buckets stack ADDITIVELY within a stat (+5% Might per level →
+//    1 + 0.05·level), and MULTIPLICATIVELY across different stats.
 //    Final damage = weaponBaseDamage(weaponLevel) · Might.
+//  • The Japanese-learning level-up puzzle is a FIRST-CLASS part of this model,
+//    not a VS feature we're replacing: every upgrade is still gated behind a
+//    particle/build/translate drill (see LevelUpScene), and the grade scales
+//    the stacks applied (GRADE_STACKS). Keep that loop intact in any port.
 //  • Enemies scale on a TIME curve: HP/contact/speed/XP climb every minute and
 //    spawn density rises, so minute 0 = one-shots, 20:00 = a tense wall.
 //  • Boss ("The Ultimate Collector") arrives at 20:00 as the run's climax.
@@ -30,6 +35,7 @@ export const PLAYER_BASE = {
 
 // ── Passive stat upgrades (the additive % buckets) ───────────────────────────
 export type StatId =
+  // ── Wired into gameplay (consumed by weapons.ts / RunScene) ──
   | 'might'
   | 'haste'
   | 'amount'
@@ -38,23 +44,41 @@ export type StatId =
   | 'moveSpeed'
   | 'maxHp'
   | 'regen'
-  | 'magnet';
+  | 'magnet'
+  // ── Ported from VS, NOT yet wired (inert until their systems exist) ──
+  | 'armor' // flat incoming-damage reduction → onPlayerHit
+  | 'growth' // XP-gain multiplier → gem/word pickup
+  | 'greed' // gold-gain multiplier → (no economy yet)
+  | 'luck' // luck multiplier → drop rolls
+  | 'curse' // enemy-stat multiplier → spawner/enemyStatsAt
+  | 'revival'; // extra revives → gameOver
 
 export interface PassiveSpec {
   perLevel: number;
   max: number;
 }
 
+// Values ported verbatim from the real Vampire Survivors PowerUp data
+// (see vs-reference.ts). VS MaxHealth is "+10% of base"; on our base-100 player
+// that is numerically +10 HP/level, kept as flat HP so the heal-on-pickup math
+// in loadout.ts stays simple.
 export const PASSIVES: Record<StatId, PassiveSpec> = {
-  might: { perLevel: 0.1, max: 5 }, // +10% damage / level
-  haste: { perLevel: 0.08, max: 5 }, // -8% cooldown / level
-  amount: { perLevel: 1, max: 3 }, // +1 projectile / level (all weapons)
-  area: { perLevel: 0.12, max: 5 }, // +12% size / level
-  projSpeed: { perLevel: 0.1, max: 5 }, // +10% projectile speed / level
-  moveSpeed: { perLevel: 0.08, max: 5 }, // +8% move speed / level
-  maxHp: { perLevel: 25, max: 5 }, // +25 max HP / level
-  regen: { perLevel: 0.5, max: 5 }, // +0.5 hp/s / level
-  magnet: { perLevel: 0.3, max: 5 }, // +30% pickup radius / level
+  might: { perLevel: 0.05, max: 5 }, // VS Might: +5% damage / level
+  haste: { perLevel: 0.025, max: 2 }, // VS Cooldown: -2.5% / level
+  amount: { perLevel: 1, max: 1 }, // VS Amount: +1 projectile (single rank)
+  area: { perLevel: 0.05, max: 2 }, // VS Area: +5% size / level
+  projSpeed: { perLevel: 0.1, max: 2 }, // VS Speed: +10% projectile speed / level
+  moveSpeed: { perLevel: 0.05, max: 2 }, // VS Move Speed: +5% / level
+  maxHp: { perLevel: 10, max: 3 }, // VS Max Health: +10% of base / level
+  regen: { perLevel: 0.1, max: 5 }, // VS Recovery: +0.1 hp/s / level
+  magnet: { perLevel: 0.25, max: 2 }, // VS Magnet: +25% pickup radius / level
+  // Ported but inert (see StatId note) — gated out of the live offer pool.
+  armor: { perLevel: 1, max: 3 }, // VS Armor: -1 incoming damage / level
+  growth: { perLevel: 0.03, max: 5 }, // VS Growth: +3% XP gain / level
+  greed: { perLevel: 0.1, max: 5 }, // VS Greed: +10% gold gain / level
+  luck: { perLevel: 0.1, max: 3 }, // VS Luck: +10% luck / level
+  curse: { perLevel: 0.1, max: 5 }, // VS Curse: +10% enemy stats / level
+  revival: { perLevel: 1, max: 1 }, // VS Revival: +1 resurrection
 };
 
 export interface DerivedStats {
@@ -67,10 +91,22 @@ export interface DerivedStats {
   maxHp: number; // absolute max HP
   regen: number; // hp/s
   magnet: number; // pickup radius multiplier
+  // Ported from VS — derived and ready to consume, but no system reads them yet.
+  armor: number; // flat incoming-damage reduction
+  growth: number; // XP-gain multiplier
+  greed: number; // gold-gain multiplier
+  luck: number; // luck multiplier
+  curse: number; // enemy-stat multiplier
+  revival: number; // number of extra revives
 }
 
-/** Fold a record of passive levels into concrete multipliers/values. */
-export function deriveStats(levels: Partial<Record<StatId, number>>): DerivedStats {
+/** Fold a record of passive levels into concrete multipliers/values.
+ *  `baseMaxHp` lets each character start from a different HP pool (the passive
+ *  bonus stacks on top of it); defaults to the global player base. */
+export function deriveStats(
+  levels: Partial<Record<StatId, number>>,
+  baseMaxHp: number = PLAYER_BASE.maxHp,
+): DerivedStats {
   const L = (id: StatId) => levels[id] ?? 0;
   return {
     might: 1 + PASSIVES.might.perLevel * L('might'),
@@ -79,9 +115,15 @@ export function deriveStats(levels: Partial<Record<StatId, number>>): DerivedSta
     area: 1 + PASSIVES.area.perLevel * L('area'),
     projSpeed: 1 + PASSIVES.projSpeed.perLevel * L('projSpeed'),
     moveSpeed: 1 + PASSIVES.moveSpeed.perLevel * L('moveSpeed'),
-    maxHp: PLAYER_BASE.maxHp + PASSIVES.maxHp.perLevel * L('maxHp'),
+    maxHp: baseMaxHp + PASSIVES.maxHp.perLevel * L('maxHp'),
     regen: PASSIVES.regen.perLevel * L('regen'),
     magnet: 1 + PASSIVES.magnet.perLevel * L('magnet'),
+    armor: PASSIVES.armor.perLevel * L('armor'),
+    growth: 1 + PASSIVES.growth.perLevel * L('growth'),
+    greed: 1 + PASSIVES.greed.perLevel * L('greed'),
+    luck: 1 + PASSIVES.luck.perLevel * L('luck'),
+    curse: 1 + PASSIVES.curse.perLevel * L('curse'),
+    revival: PASSIVES.revival.perLevel * L('revival'),
   };
 }
 
@@ -101,15 +143,24 @@ export interface WeaponDef {
   kind: 'projectile' | 'aura';
   maxLevel: number;
   level: (L: number) => WeaponLevelStats;
+  // VS-style evolution scaffolding (ported, not yet wired): at maxLevel, owning
+  // the required passive lets the weapon evolve into `evolvesTo`. The trigger
+  // logic (in loadout/LevelUpScene) is a follow-up — these fields just declare
+  // the relationship so the data is ready. Evolutions remain gated behind the
+  // Japanese-learning level-up, same as every other upgrade.
+  evolvesTo?: string; // weapon id of the evolved form
+  evolveRequires?: StatId; // passive that must be owned to evolve
 }
 
 export const WEAPONS: Record<string, WeaponDef> = {
-  // Starter: fires the nearest enemy. Reliable single-target → light pierce.
+  // Starter (Kohai): fires the nearest enemy. Reliable single-target → light pierce.
   pocky: {
     id: 'pocky',
     name: 'Pocky Shooter',
     kind: 'projectile',
     maxLevel: 8,
+    evolvesTo: 'pocky_evo',
+    evolveRequires: 'might',
     level: (L) => ({
       damage: 13 + 5 * (L - 1),
       cooldown: Math.max(360, 600 - 28 * (L - 1)),
@@ -119,12 +170,14 @@ export const WEAPONS: Record<string, WeaponDef> = {
       range: 900, // reaches across the screen and beyond
     }),
   },
-  // Unlockable: a pulsing ring that hits everything around you (crowd control).
+  // Sensei: a pulsing ring that hits everything around you (crowd control).
   aura: {
     id: 'aura',
     name: 'Otaku Aura',
     kind: 'aura',
     maxLevel: 8,
+    evolvesTo: 'aura_evo',
+    evolveRequires: 'area',
     level: (L) => ({
       damage: 5 + 3 * (L - 1),
       cooldown: Math.max(480, 900 - 52 * (L - 1)),
@@ -134,7 +187,56 @@ export const WEAPONS: Record<string, WeaponDef> = {
       range: 0, // aura uses its own radius
     }),
   },
+  // Ronin: a fast, short-range storm of low-damage piercing stars (glass-cannon).
+  shuriken: {
+    id: 'shuriken',
+    name: 'Shuriken Storm',
+    kind: 'projectile',
+    maxLevel: 8,
+    evolvesTo: 'shuriken_evo',
+    evolveRequires: 'projSpeed',
+    level: (L) => ({
+      damage: 7 + 3 * (L - 1),
+      cooldown: Math.max(260, 420 - 20 * (L - 1)),
+      amount: 2 + (L >= 3 ? 1 : 0) + (L >= 5 ? 1 : 0) + (L >= 7 ? 1 : 0), // 2→5
+      speed: 540,
+      pierce: 1 + (L >= 4 ? 1 : 0),
+      range: 460, // short reach — you must wade in
+    }),
+  },
+
+  // ── Evolved forms (VS-style capstones). Reached only via evolution (maxed
+  //    weapon + maxed required passive + player level ≥ EVOLVE_MIN_LEVEL), never
+  //    offered from scratch. maxLevel 1: they arrive at full power. This is the
+  //    player's DPS-ceiling lift — roughly 2× a maxed weapon — tuned so a late
+  //    evolution carries you over the final swarm to the boss WITHOUT making the
+  //    mid-game trivial.
+  pocky_evo: {
+    id: 'pocky_evo',
+    name: 'Pocky Overdrive',
+    kind: 'projectile',
+    maxLevel: 1,
+    level: () => ({ damage: 62, cooldown: 330, amount: 4, speed: 720, pierce: 4, range: 1000 }),
+  },
+  aura_evo: {
+    id: 'aura_evo',
+    name: 'Cosmic Otaku Aura',
+    kind: 'aura',
+    maxLevel: 1,
+    level: () => ({ damage: 40, cooldown: 420, amount: 1, speed: 0, pierce: 999, range: 0 }),
+  },
+  shuriken_evo: {
+    id: 'shuriken_evo',
+    name: 'Thousand Cuts',
+    kind: 'projectile',
+    maxLevel: 1,
+    level: () => ({ damage: 30, cooldown: 150, amount: 8, speed: 600, pierce: 4, range: 560 }),
+  },
 };
+
+// Evolutions only unlock once the player is deep enough into the run — keeps
+// the spike a late-game payoff, not an early build-defining freebie.
+export const EVOLVE_MIN_LEVEL = 40;
 
 // ── Enemies: base stats × time multipliers ───────────────────────────────────
 export interface EnemyBase {
@@ -149,12 +251,14 @@ export const ENEMY_BASE: Record<string, EnemyBase> = {
   MerchMule: { hp: 14, contact: 6, speed: 56, xp: 3 },
 };
 
-// Time multipliers (t in seconds, m in minutes).
+// Time multipliers (t in seconds, m in minutes). Front-loaded so the pressure
+// arrives EARLY (tense by ~8–10 min) instead of only at the boss — the late
+// game stays an overwhelm climax.
 export const hpMult = (t: number) => {
   const m = t / 60;
-  return 1 + 0.18 * m + 0.045 * m * m; // m0=1, m10≈7.3, m20≈22.6
+  return 1 + 0.3 * m + 0.03 * m * m; // m0=1, m5≈4.3, m10≈8, m15≈13.3, m20≈19
 };
-export const contactMult = (t: number) => 1 + 0.05 * (t / 60); // gentle
+export const contactMult = (t: number) => 1 + 0.06 * (t / 60); // gentle
 export const speedMult = (t: number) => 1 + 0.015 * (t / 60);
 export const xpMult = (t: number) => 1 + 0.12 * (t / 60); // gems worth more late
 
@@ -171,14 +275,14 @@ export function enemyStatsAt(key: string, t: number): EnemyBase {
 
 // ── Spawning over time ───────────────────────────────────────────────────────
 export const spawnInterval = (t: number) => {
-  const m = Math.min(t / 60, 15);
-  return lerp(900, 200, m / 15); // ms; floors at 15:00
+  const m = Math.min(t / 60, 10);
+  return lerp(800, 200, m / 10); // ms; floors at 10:00 (was 15:00)
 };
 export const maxAlive = (t: number) => {
-  const m = Math.min(t / 60, 20);
-  return Math.round(lerp(40, 300, m / 20));
+  const m = Math.min(t / 60, 16);
+  return Math.round(lerp(60, 320, m / 16)); // starts denser, caps by 16:00
 };
-export const spawnBurst = (t: number) => 1 + Math.floor(Math.min(t / 60, 20) / 5); // 1→5
+export const spawnBurst = (t: number) => 1 + Math.floor(Math.min(t / 60, 18) / 3); // 1→6 (every 3 min, caps 18:00)
 /** Mule share of spawns (loot mobs) rises a little over time. */
 export const muleShare = (t: number) => clamp(0.12 + 0.01 * (t / 60), 0.12, 0.32);
 
