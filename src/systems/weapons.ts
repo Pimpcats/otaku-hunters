@@ -68,13 +68,18 @@ export class WeaponManager {
     s: { might: number; area: number; projSpeed: number },
     def: WeaponDef,
   ) {
-    const b = this.bullets.get(px, py, TEX.bullet) as Sprite | null;
+    const tex = def.projTexture ?? TEX.bullet;
+    const b = this.bullets.get(px, py, tex) as Sprite | null;
     if (!b) return;
+    b.setTexture(tex); // recycled bullets may carry another weapon's shape
     b.enableBody(true, px, py, true, true);
     b.setBlendMode(Phaser.BlendModes.ADD);
     b.setScale(s.area * (def.projScale ?? 1));
+    b.setRotation(angle); // point directional shapes (the pocky stick) along travel
     if (def.tint !== undefined) b.setTint(def.tint);
     else b.clearTint();
+    const body = b.body as Phaser.Physics.Arcade.Body;
+    body.setAngularVelocity(def.spin ?? 0); // spinning shuriken; 0 resets a reused bullet
     b.setData('damage', base.damage * s.might);
     b.setData('pierce', base.pierce);
     b.setData('hits', new Set<Phaser.GameObjects.GameObject>());

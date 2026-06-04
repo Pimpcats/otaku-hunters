@@ -176,6 +176,38 @@ function circleTexture(scene: Phaser.Scene, key: string, r: number, fill: number
   g.destroy();
 }
 
+/** A pocky-stick projectile: a white capsule with a darker "dipped" tip, drawn
+ *  white so the weapon's tint colours it. Oriented along +x (rotated to travel
+ *  direction in-game). */
+function pockyTexture(scene: Phaser.Scene, key: string): void {
+  if (scene.textures.exists(key)) return;
+  const w = 20;
+  const h = 8;
+  const g = scene.make.graphics({ x: 0, y: 0 });
+  g.fillStyle(0xffffff, 1).fillRoundedRect(0, 0, w, h, h / 2); // biscuit stick
+  g.fillStyle(0xb8b8b8, 1).fillRoundedRect(w - 8, 0, 8, h, h / 2); // dipped tip (shaded)
+  g.generateTexture(key, w, h);
+  g.destroy();
+}
+
+/** A 4-point throwing-star projectile (white, tinted + spun in-game). */
+function shurikenTexture(scene: Phaser.Scene, key: string): void {
+  if (scene.textures.exists(key)) return;
+  const s = 16;
+  const c = s / 2;
+  const o = c; // blade reaches the edge
+  const inn = s * 0.18; // blade half-width at the hub
+  const g = scene.make.graphics({ x: 0, y: 0 });
+  g.fillStyle(0xffffff, 1);
+  g.fillTriangle(c, c - o, c - inn, c, c + inn, c); // up
+  g.fillTriangle(c, c + o, c - inn, c, c + inn, c); // down
+  g.fillTriangle(c - o, c, c, c - inn, c, c + inn); // left
+  g.fillTriangle(c + o, c, c, c - inn, c, c + inn); // right
+  g.fillStyle(0x9a9a9a, 1).fillCircle(c, c, s * 0.12); // hub
+  g.generateTexture(key, s, s);
+  g.destroy();
+}
+
 // Monster recipes (the player roster brings its own, from characters.ts).
 const MONSTERS: Record<string, CreatureSpec> = {
   [TEX.rushFan]: { size: 20, body: COLORS.rushFan, accent: 0xffd0d0, shape: 'spiky', ears: 'horns' },
@@ -192,9 +224,11 @@ export function generatePlaceholderTextures(scene: Phaser.Scene): void {
   // Monsters.
   for (const [base, spec] of Object.entries(MONSTERS)) creatureSet(scene, base, spec);
 
-  // Pickups + projectile (non-directional).
+  // Pickups + projectiles (non-directional). Each weapon gets a distinct shape.
   circleTexture(scene, TEX.xp, 5, COLORS.xp);
   circleTexture(scene, TEX.bullet, 5, COLORS.bullet);
+  pockyTexture(scene, TEX.pocky);
+  shurikenTexture(scene, TEX.shuriken);
   // word token: a small square
   if (!scene.textures.exists(TEX.word)) {
     const g = scene.make.graphics({ x: 0, y: 0 });
