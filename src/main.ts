@@ -4,6 +4,7 @@ import { BootScene } from './scenes/BootScene';
 import { MetaScene } from './scenes/MetaScene';
 import { RunScene } from './scenes/RunScene';
 import { LevelUpScene } from './scenes/LevelUpScene';
+import { PauseScene } from './scenes/PauseScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -24,7 +25,7 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, MetaScene, RunScene, LevelUpScene],
+  scene: [BootScene, MetaScene, RunScene, LevelUpScene, PauseScene],
 };
 
 // eslint-disable-next-line no-new

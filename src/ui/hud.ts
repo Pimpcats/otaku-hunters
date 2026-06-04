@@ -1,11 +1,10 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../constants';
+import { GAME_WIDTH, COLORS } from '../constants';
 
-// Fixed-to-camera run HUD: HP (bottom-left), XP bar (top), level + timer +
-// words collected.
+// Fixed-to-camera run HUD: XP bar (top), level + timer + words collected, and
+// the boss bar. (Player HP is a floating bar above the character, in RunScene.)
 export class Hud {
   private xpBar: Phaser.GameObjects.Rectangle;
-  private hpBar: Phaser.GameObjects.Rectangle;
   private levelText: Phaser.GameObjects.Text;
   private timerText: Phaser.GameObjects.Text;
   private wordsText: Phaser.GameObjects.Text;
@@ -45,18 +44,6 @@ export class Hud {
       .setScrollFactor(0)
       .setDepth(902);
 
-    // HP bar bottom-left.
-    scene.add
-      .rectangle(10, GAME_HEIGHT - 22, 220, 14, COLORS.hpBack)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(900);
-    this.hpBar = scene.add
-      .rectangle(10, GAME_HEIGHT - 22, 220, 14, COLORS.hp)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(901);
-
     // Boss bar (hidden until the boss appears) across the top, under the XP bar.
     const bw = W - 160;
     this.bossText = scene.add
@@ -90,7 +77,6 @@ export class Hud {
     boss: { hp: number; maxHp: number; name: string } | null;
   }): void {
     this.xpBar.width = GAME_WIDTH * Phaser.Math.Clamp(state.xp / state.xpToNext, 0, 1);
-    this.hpBar.width = 220 * Phaser.Math.Clamp(state.hp / state.maxHp, 0, 1);
     this.levelText.setText(`LV ${state.level}`);
     this.wordsText.setText(`語 ${state.words}`);
     const m = Math.floor(state.elapsed / 60);

@@ -21,6 +21,7 @@ import { beginRun } from '../systems/srs';
 
 const WORLD = 4000;
 const WORD_DROP_CHANCE = 0.18;
+const HP_BAR_W = 46;
 
 type Sprite = Phaser.Physics.Arcade.Sprite;
 
@@ -42,6 +43,8 @@ export class RunScene extends Phaser.Scene {
   private spawner!: Spawner;
   private controls!: InputController;
   private hud!: Hud;
+  private hpBarBack!: Phaser.GameObjects.Rectangle;
+  private hpBarFill!: Phaser.GameObjects.Rectangle;
 
   private dir = new Phaser.Math.Vector2();
 
@@ -114,6 +117,31 @@ export class RunScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, this.onPlayerHit, undefined, this);
     this.physics.add.overlap(this.player, this.gems, this.onCollectGem, undefined, this);
     this.physics.add.overlap(this.player, this.wordTokens, this.onCollectWord, undefined, this);
+
+    // Floating HP bar above the player (world-space).
+    this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(60);
+    this.hpBarFill = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hp).setOrigin(0, 0.5).setDepth(61);
+
+    // Pause on ESC or Space.
+    this.input.keyboard?.on('keydown-ESC', this.openPause, this);
+    this.input.keyboard?.on('keydown-SPACE', this.openPause, this);
+  }
+
+  private openPause() {
+    if (this.dead || this.won || this.leveling) return;
+    this.scene.launch('Pause');
+    this.scene.pause();
+  }
+
+  private updateHpBar() {
+    const ratio = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
+    const x = this.player.x - HP_BAR_W / 2;
+    const y = this.player.y - 24;
+    this.hpBarBack.setPosition(x, y);
+    this.hpBarFill.setPosition(x, y);
+    this.hpBarFill.width = HP_BAR_W * ratio;
+    const col = ratio > 0.5 ? 0x7cff9e : ratio > 0.25 ? 0xffd166 : 0xff5a5a;
+    this.hpBarFill.setFillStyle(col);
   }
 
   private drawBackground() {
@@ -446,6 +474,7 @@ export class RunScene extends Phaser.Scene {
     // regen + maxHp upkeep
     this.maxHp = stats.maxHp;
     if (stats.regen > 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + stats.regen * dt);
+    this.updateHpBar();
 
     // spawning + boss
     if (!this.bossSpawned && this.elapsed >= BOSS_TIME) this.spawnBoss();
