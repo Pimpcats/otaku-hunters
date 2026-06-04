@@ -92,6 +92,7 @@ export interface WeaponLevelStats {
   amount: number; // projectiles/pulses (before +amount passive)
   speed: number; // projectile speed px/s (0 = stationary aura)
   pierce: number; // enemies a projectile passes through
+  range: number; // targeting + travel distance in px (before ProjSpeed)
 }
 
 export interface WeaponDef {
@@ -110,11 +111,12 @@ export const WEAPONS: Record<string, WeaponDef> = {
     kind: 'projectile',
     maxLevel: 8,
     level: (L) => ({
-      damage: 9 + 4 * (L - 1),
-      cooldown: Math.max(380, 620 - 30 * (L - 1)),
+      damage: 13 + 5 * (L - 1),
+      cooldown: Math.max(360, 600 - 28 * (L - 1)),
       amount: 1 + (L >= 3 ? 1 : 0) + (L >= 6 ? 1 : 0),
-      speed: 440,
+      speed: 620,
       pierce: 1 + (L >= 4 ? 1 : 0) + (L >= 7 ? 1 : 0),
+      range: 900, // reaches across the screen and beyond
     }),
   },
   // Unlockable: a pulsing ring that hits everything around you (crowd control).
@@ -129,6 +131,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
       amount: 1,
       speed: 0,
       pierce: 999,
+      range: 0, // aura uses its own radius
     }),
   },
 };
@@ -149,7 +152,7 @@ export const ENEMY_BASE: Record<string, EnemyBase> = {
 // Time multipliers (t in seconds, m in minutes).
 export const hpMult = (t: number) => {
   const m = t / 60;
-  return 1 + 0.18 * m + 0.035 * m * m; // m0=1, m10≈6.3, m20≈18.6
+  return 1 + 0.18 * m + 0.045 * m * m; // m0=1, m10≈7.3, m20≈22.6
 };
 export const contactMult = (t: number) => 1 + 0.05 * (t / 60); // gentle
 export const speedMult = (t: number) => 1 + 0.015 * (t / 60);
@@ -193,7 +196,7 @@ export const NOPE_HEAL = 12; // hp, so a wrong answer still feels rewarding
 export const BOSS = {
   id: 'ultimate_collector',
   name: 'The Ultimate Collector',
-  hp: 60000, // tuned so a 20-min build clears it in ~30–45s (see sim)
+  hp: 75000, // tuned so a 20-min build clears it in ~30–45s (see sim)
   contact: 28,
   speed: 64,
   xp: 200,

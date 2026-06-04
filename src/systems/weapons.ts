@@ -43,11 +43,12 @@ export class WeaponManager {
   private fireProjectile(
     px: number,
     py: number,
-    base: { damage: number; amount: number; speed: number; pierce: number },
+    base: { damage: number; amount: number; speed: number; pierce: number; range: number },
     s: { might: number; amount: number; area: number; projSpeed: number },
     enemies: Phaser.Physics.Arcade.Group,
   ) {
-    const target = this.nearest(px, py, enemies, 360);
+    const reach = base.range * s.projSpeed;
+    const target = this.nearest(px, py, enemies, reach);
     if (!target) return;
     const angle = Math.atan2(target.y - py, target.x - px);
     const count = base.amount + s.amount;
@@ -62,7 +63,7 @@ export class WeaponManager {
     px: number,
     py: number,
     angle: number,
-    base: { damage: number; speed: number; pierce: number },
+    base: { damage: number; speed: number; pierce: number; range: number },
     s: { might: number; area: number; projSpeed: number },
   ) {
     const b = this.bullets.get(px, py, TEX.bullet) as Sprite | null;
@@ -75,8 +76,9 @@ export class WeaponManager {
     b.setData('hits', new Set<Phaser.GameObjects.GameObject>());
     const speed = base.speed * s.projSpeed;
     (b.body as Phaser.Physics.Arcade.Body).setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-    // lifespan ~ travel range
-    this.scene.time.delayedCall(1100, () => {
+    // lifespan = travel distance / speed → bullet covers its full range
+    const lifespanMs = (base.range / base.speed) * 1000;
+    this.scene.time.delayedCall(lifespanMs, () => {
       if (b.active) this.killBullet(b);
     });
   }
