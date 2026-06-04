@@ -6,6 +6,8 @@ import {
   PLAYER_BASE,
   enemyStatsAt,
   xpForLevel,
+  wordTokenXp,
+  WORD_XP,
   BOSS,
   BOSS_TIME,
   type Grade,
@@ -280,23 +282,29 @@ export class RunScene extends Phaser.Scene {
     const w = wObj as Sprite;
     if (!w.active) return;
     const word = w.getData('word') as Word;
+    // XP boost: scales with level, decays the longer it sat on the ground.
+    const age = (this.time.now - ((w.getData('dropTime') as number) ?? this.time.now)) / 1000;
+    const gain = wordTokenXp(this.level, age);
     w.disableBody(true, true);
     this.wordTokens.killAndHide(w);
+    this.xp += gain;
     if (word && !this.collectedSet.has(word.jp)) {
       this.collectedSet.add(word.jp);
       this.collectedWords.set(word.jp, word);
     }
     if (word) {
       speakJa(word.jp);
-      // jp + romaji + english, held a few seconds then a slow fade so it's readable
+      // jp + romaji + english + the XP gained, held a few seconds then slow-fade
       const romaji = word.romaji ? `  (${word.romaji})` : '';
-      this.floatLabel(this.player.x, this.player.y - 28, `${word.jp}${romaji}\n${word.en}`, COLORS.word, {
-        hold: 2400,
-        fade: 1400,
-        size: 20,
-        rise: 26,
-      });
+      this.floatLabel(
+        this.player.x,
+        this.player.y - 28,
+        `${word.jp}${romaji}\n${word.en}   +${gain} XP`,
+        COLORS.word,
+        { hold: 2400, fade: 1400, size: 20, rise: 26 },
+      );
     }
+    this.checkLevelUp();
   };
 
   // ── drops & juice ─────────────────────────────────────────────────────────
@@ -316,7 +324,9 @@ export class RunScene extends Phaser.Scene {
     if (!w) return;
     w.enableBody(true, x, y, true, true);
     w.setDepth(31);
+    w.setAlpha(1);
     w.setData('word', word);
+    w.setData('dropTime', this.time.now);
     w.setBlendMode(Phaser.BlendModes.ADD);
     this.tweens.add({ targets: w, scale: 1.25, duration: 500, yoyo: true, repeat: -1 });
   }
@@ -487,6 +497,15 @@ export class RunScene extends Phaser.Scene {
 
     // XP magnet (scaled by Collector's Magnet)
     this.magnetize(this.gems, PLAYER_BASE.pickupRadius * stats.magnet, 280);
+
+    // Word tokens fade as they decay (grab them fast for full XP).
+    for (const obj of this.wordTokens.getChildren()) {
+      const w = obj as Sprite;
+      if (!w.active) continue;
+      const age = (this.time.now - ((w.getData('dropTime') as number) ?? this.time.now)) / 1000;
+      const f = Phaser.Math.Clamp(age / WORD_XP.decaySeconds, 0, 1);
+      w.setAlpha(1 - 0.5 * f);
+    }
 
     // regen + maxHp upkeep
     this.maxHp = stats.maxHp;

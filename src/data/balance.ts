@@ -185,6 +185,21 @@ export const muleShare = (t: number) => clamp(0.12 + 0.01 * (t / 60), 0.12, 0.32
 // ── XP / leveling ────────────────────────────────────────────────────────────
 export const xpForLevel = (level: number) => Math.round(5 + 4 * level + 0.5 * level * level);
 
+// Word-token XP. A word token is worth ~15× a single XP gem, scales up with the
+// player's level so it stays a meaningful chunk, and DECAYS the longer it sits
+// on the ground (grab it fast for full value) down to a floor.
+export const WORD_XP = {
+  base: 15,
+  perLevel: 0.15, // +15% of base per level above 1
+  decaySeconds: 12, // time on the ground to reach the floor
+  floor: 0.35, // minimum fraction once stale
+};
+export function wordTokenXp(level: number, ageSeconds: number): number {
+  const levelScale = 1 + WORD_XP.perLevel * Math.max(0, level - 1);
+  const fresh = Math.max(WORD_XP.floor, 1 - ageSeconds / WORD_XP.decaySeconds);
+  return Math.max(1, Math.round(WORD_XP.base * levelScale * fresh));
+}
+
 // ── Level-up reward scaling (minigame grade → upgrade stacks) ─────────────────
 // Baseline (nope) is already a real upgrade; correctness is a BONUS on top
 // (guardrail §8.2 — never framed as a penalty).
