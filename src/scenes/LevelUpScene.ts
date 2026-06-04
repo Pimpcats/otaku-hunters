@@ -40,7 +40,7 @@ interface BuildSlot {
   rect: Phaser.GameObjects.Rectangle;
 }
 
-const SOLVE_TIME = 15000; // ms; no answer → "nope" (still rewards)
+const SOLVE_TIME = 16000; // ms; no answer → "nope" (still rewards)
 const HEAL_CARD_AMOUNT = 40;
 
 // The level-up flow (brief §4 + §2 upgrades):
@@ -307,24 +307,27 @@ export class LevelUpScene extends Phaser.Scene {
     const subtitle = p.direction === 'jp2en' ? 'What does this word mean?' : 'Pick the Japanese word';
     this.add.text(cx, 84, subtitle, { fontFamily: 'system-ui', fontSize: '15px', color: '#8890b5' }).setOrigin(0.5);
 
-    // The prompt word, large. Voice it when the prompt itself is Japanese.
+    // The prompt word, large, ABOVE the option buttons (depth-lifted so a
+    // button can never paint over it).
     const big = p.direction === 'jp2en';
-    this.add.text(cx, 148, p.prompt, {
-      fontFamily: 'system-ui',
-      fontSize: big ? '42px' : '30px',
-      color: big ? '#ffffff' : '#ffd166',
-      fontStyle: 'bold',
-      align: 'center',
-      wordWrap: { width: GAME_WIDTH - 120 },
-    }).setOrigin(0.5);
+    this.add
+      .text(cx, 150, p.prompt, {
+        fontFamily: 'system-ui',
+        fontSize: big ? '44px' : '30px',
+        color: big ? '#ffffff' : '#ffd166',
+        fontStyle: 'bold',
+        align: 'center',
+        wordWrap: { width: GAME_WIDTH - 120 },
+      })
+      .setOrigin(0.5)
+      .setDepth(5);
     if (big) speakJa(p.prompt);
 
     const isJpOption = p.direction === 'en2jp';
     const btnW = 440;
     const btnH = 46;
     const gap = 12;
-    const n = p.options.length;
-    let y = 224 - ((n - 1) * (btnH + gap)) / 2 + 30;
+    let y = 212; // first button sits clearly below the prompt
     for (const opt of p.options) {
       const container = this.add.container(cx, y);
       const bg = this.add.rectangle(0, 0, btnW, btnH, COLORS.chip).setStrokeStyle(2, 0x5560a0).setInteractive({ useHandCursor: true });
@@ -342,7 +345,7 @@ export class LevelUpScene extends Phaser.Scene {
       y += btnH + gap;
     }
 
-    const skip = this.add.text(cx, 414, 'skip ▸', { fontFamily: 'system-ui', fontSize: '16px', color: '#8890b5' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const skip = this.add.text(cx, 422, 'skip ▸', { fontFamily: 'system-ui', fontSize: '16px', color: '#8890b5' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     skip.on('pointerup', () => {
       if (this.phase === 'puzzle') this.toUpgrades('nope');
     });
