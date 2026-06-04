@@ -152,15 +152,18 @@ export function selectSentence(
 }
 
 /**
- * Unified level-up puzzle picker. Chooses a MODE — particle drill vs
- * build-the-sentence (the build share ramps with level) — selects a fitting,
- * varied, skew-corrected sentence, and returns a ready puzzle. Falls back to
- * the other mode if one has no candidates; null only if the stage has neither.
+ * Unified level-up puzzle picker. Particles are an intermediate skill, so the
+ * curriculum LEADS with word-order (build) and RAMPS particles in by level:
+ * none for the first few levels (when you barely know the words), then a
+ * growing share so particles become the mid/late-game focus. Selects a fitting,
+ * varied, skew-corrected sentence; falls back to the other mode if one has no
+ * candidates; null only if the stage has neither.
  */
 export function pickPuzzle(stage: ResolvedStage, pool: CollectedPool, opts: PickOpts): AnyPuzzle | null {
-  const buildShare = clamp(0.35 + 0.03 * opts.level, 0.35, 0.6);
-  const first: Mode = Math.random() < buildShare ? 'build' : 'particle';
-  const order: Mode[] = first === 'build' ? ['build', 'particle'] : ['particle', 'build'];
+  // 0% particles until ~level 4, then fade in toward a 60% cap (mid/late focus).
+  const particleShare = clamp(0.07 * (opts.level - 3), 0, 0.6);
+  const first: Mode = Math.random() < particleShare ? 'particle' : 'build';
+  const order: Mode[] = first === 'particle' ? ['particle', 'build'] : ['build', 'particle'];
 
   for (const mode of order) {
     const cands = candidatesFor(stage, pool, opts, mode);
