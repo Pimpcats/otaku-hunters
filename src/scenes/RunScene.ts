@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, PLAYER, TEX } from '../constants';
 import { getStage, type ResolvedStage } from '../data/stages';
+import { getCharacter, type CharacterDef } from '../data/characters';
 import type { Word } from '../data/types';
 import {
   PLAYER_BASE,
@@ -37,6 +38,7 @@ export interface LevelUpResult {
 
 export class RunScene extends Phaser.Scene {
   private stage!: ResolvedStage;
+  private character!: CharacterDef;
   private loadout!: PlayerLoadout;
   private player!: Sprite;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -94,16 +96,20 @@ export class RunScene extends Phaser.Scene {
     this.facing = 'down';
   }
 
-  create(data: { stageId?: string }) {
+  create(data: { stageId?: string; characterId?: string }) {
     this.stage = getStage(data.stageId ?? 'arcade');
-    this.loadout = new PlayerLoadout();
+    this.character = getCharacter(data.characterId);
+    this.loadout = new PlayerLoadout(this.character);
+    // Base HP/move-speed come from the chosen character.
+    this.maxHp = this.loadout.stats().maxHp;
+    this.hp = this.maxHp;
     beginRun();
 
     this.physics.world.setBounds(0, 0, WORLD, WORLD);
     this.cameras.main.setBounds(0, 0, WORLD, WORLD);
     this.drawBackground();
 
-    this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(TEX.player, 'down'));
+    this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     this.player.setCircle(PLAYER.radius, 0, 0);
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(50);
@@ -197,9 +203,9 @@ export class RunScene extends Phaser.Scene {
     e.setCircle(9, 0, 0);
     e.setFlipX(false);
     e.setDepth(48);
-    e.setTint(0xc44dff);
+    e.clearTint(); // its texture is already the purple Ultimate Collector
     e.setData('speed', BOSS.speed);
-    e.setData('tint', 0xc44dff);
+    e.setData('tint', undefined);
     e.setData('face', 'down');
     e.setData('faceSet', '');
     e.setData('faceState', '');
@@ -474,11 +480,11 @@ export class RunScene extends Phaser.Scene {
 
     // movement + 4-direction facing
     this.controls.getDirection(this.dir);
-    const speed = PLAYER_BASE.moveSpeed * stats.moveSpeed;
+    const speed = this.character.baseMoveSpeed * stats.moveSpeed;
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(this.dir.x * speed, this.dir.y * speed);
     const moving = this.dir.x !== 0 || this.dir.y !== 0;
     this.facing = vectorToCardinal(this.dir.x, this.dir.y, this.facing);
-    applyFacing(this.player, TEX.player, this.facing, moving ? 'walk' : 'idle');
+    applyFacing(this.player, this.character.texture, this.facing, moving ? 'walk' : 'idle');
 
     // enemy AI + facing (from their resulting velocity)
     for (const obj of this.enemies.getChildren()) {

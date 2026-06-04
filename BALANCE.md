@@ -58,20 +58,47 @@ guardrail §8.2):
 A wrong answer still lets you pick an upgrade (×1) **and** heals — so engaging
 with the Japanese only ever helps.
 
+## Characters (the roster)
+
+Pick one of three hunters on the menu (`src/data/characters.ts`). Each differs in
+starting weapon, base HP, base move speed, and an identity passive. Names are
+Japanese vocab so the roster reinforces the lesson.
+
+| Hunter | Weapon | Base HP | Speed | Start passive | Feel |
+|--------|--------|---------|-------|---------------|------|
+| 後輩 **Kōhai** (junior) | Pocky Shooter | 100 | 220 | — | balanced all-rounder |
+| 先生 **Sensei** (teacher) | Otaku Aura | 140 | 184 | +Recovery | tanky crowd-control |
+| 浪人 **Rōnin** (wanderer) | Shuriken Storm | 72 | 268 | +Might | fast glass cannon |
+
 ## Weapons (per-level base, before passives)
 
 | Weapon | Damage | Cooldown (ms) | Projectiles | Pierce |
 |--------|--------|---------------|-------------|--------|
-| **Pocky Shooter** (start) | `9 + 4·(L−1)` | `max(380, 620 − 30·(L−1))` | 1 (+1 @L3, +1 @L6) | 1 (+1 @L4, +1 @L7) |
-| **Otaku Aura** (unlock) | `5 + 3·(L−1)` | `max(480, 900 − 52·(L−1))` | ring hits all in radius | ∞ |
+| **Pocky Shooter** (Kōhai) | `13 + 5·(L−1)` | `max(360, 600 − 28·(L−1))` | 1 (+1 @L3, +1 @L6) | 1 (+1 @L4, +1 @L7) |
+| **Otaku Aura** (Sensei) | `5 + 3·(L−1)` | `max(480, 900 − 52·(L−1))` | ring hits all in radius | ∞ |
+| **Shuriken Storm** (Rōnin) | `7 + 3·(L−1)` | `max(260, 420 − 20·(L−1))` | 2 (→5 by L7), short range | 1 (+1 @L4) |
+
+### Evolutions (the DPS-ceiling lift)
+
+VS-style capstones (`evolvesTo` / `evolveRequires` in `balance.ts`, triggered in
+`loadout.ts`). A weapon evolves when **maxed + its required passive maxed +
+player level ≥ `EVOLVE_MIN_LEVEL` (40)** — a deliberate *late-game* power spike
+(~2× the maxed weapon) that carries you over the final swarm to the boss. Offered
+as a priority card on level-up, earned through the Japanese drill like everything.
+
+| Base → Evolved | Requires |
+|----------------|----------|
+| Pocky Shooter → **Pocky Overdrive** | Might (maxed) |
+| Otaku Aura → **Cosmic Otaku Aura** | Area (maxed) |
+| Shuriken Storm → **Thousand Cuts** | Speed/ProjSpeed (maxed) |
 
 ## Enemy time curve (the difficulty ramp)
 
 Enemies have small base stats × **time multipliers** (t seconds, m = t/60).
-**Front-loaded** (2026-06 pass) so pressure arrives early, not just at the boss:
+**Front-loaded** so pressure builds early, not just at the boss:
 
 ```
-HP      ×= 1 + 0.34·m + 0.055·m²    // m0=1, m5≈4.1, m10≈9.9, m20≈29.8
+HP      ×= 1 + 0.30·m + 0.03·m²     // m0=1, m5≈4.3, m10≈8, m15≈13.3, m20≈19
 Contact ×= 1 + 0.06·m
 Speed   ×= 1 + 0.015·m
 XP      ×= 1 + 0.12·m                // gems worth more late, leveling keeps pace
@@ -81,47 +108,46 @@ Base: RushFan {hp 6, contact 8, speed 70, xp 1}; MerchMule {hp 14, contact 6,
 speed 56, xp 3, drops a word-token}.
 
 Spawning ramps faster too: interval `800ms → 200ms` (floors at **10:00**), burst
-`1 → 7` (every 3 min), on-screen cap `60 → 320` (by 16:00), Merch-Mule share
-`12% → 32%`.
+`1 → 6` (every 3 min, caps 18:00), on-screen cap `60 → 320` (by 16:00),
+Merch-Mule share `12% → 32%`.
 
 ## The curve (from `tools/balance-sim.ts`)
 
 An "average" build (grade mix 35/45/20 → ~2.15 stacks per level-up) vs. the
-enemy curve. After the VS-passive port + front-loaded curve:
+enemy curve. After the VS-passive port, front-loaded curve, and **evolutions**:
 
-| Time | Fodder HP | Hits to kill | Spawn/s | Clear ratio | Feel |
-|------|-----------|--------------|---------|-------------|------|
-| 0:00 | 7 | <1 | 1 | 2.5 | one-shots ✓ |
-| 2:00 | 14 | <1 | 1 | 11.8 | comfortable |
-| 5:00 | 30 | <1 | 4 | 8.9 | building |
-| 10:00 | 77 | 1.3 | 20 | **1.55** | tense |
-| 15:00 | 151 | 2.5 | 30 | 0.53 | OVERWHELMED |
-| 19:00 | 232 | 3.9 | 35 | 0.29 | swarmed |
+| Time | Fodder HP | Spawn/s | Single DPS | Clear ratio | Feel |
+|------|-----------|---------|-----------|-------------|------|
+| 0:00 | 7 | 1 | 22 | 2.5 | one-shots ✓ |
+| 5:00 | 24 | 4 | 484 | 11.2 | building |
+| 10:00 | 54 | 20 | 753 | 2.2 | hectic (≈220 on screen) |
+| 13:00 | — | — | **→1487** | — | **EVOLUTION spike** |
+| 15:00 | 100 | 30 | 1487 | 1.6 | pushing through |
+| 19:00 | 149 | 35 | 1487 | 0.91 | tense |
+| 20:00 | 163 | 35 | 1487 | 0.83 | tense → boss |
 
-- *Clear ratio* = your clear-DPS ÷ incoming-HP-per-second. >1 = out-clearing
-  spawns. The squeeze now lands ~5 min earlier than the old curve.
-- A weaker player (more wrong answers → fewer stacks, slower build) hits the
-  wall earlier; a strong player ramps faster — **skill and Japanese both matter.**
+- The arc: build → **evolve ~13:00** (DPS roughly doubles) → tense final stretch
+  → boss. Boss single-target TTK ≈ **50s**. The run is completable again.
+- *Structural note:* the curve's threat grows ~6× from min 10→20, but a 2×
+  evolution only lifts you 2×, so the "tense band" can't span the whole back
+  half — it's tuned to sit in the final minutes + boss. Pushing tension *earlier*
+  (steeper mid curve) trades against reaching the boss; tune by feel.
 
 ## Boss — The Ultimate Collector (20:00)
 
-`HP 75,000`, contact 28, slow relentless beeline. Defeating it = **Stage Clear**.
+`HP 75,000`, contact 28, slow relentless beeline. An evolved 20-min build does
+~1,500 single-target DPS → **~50s fight**. Defeating it = **Stage Clear**.
 
-## ⚠ Rebalancing debt — the player power ceiling
+## Power-ceiling status (was: rebalancing debt — RESOLVED)
 
-VS's tame passive caps mean clear-DPS **hits a hard ceiling (~2,387) and stops
-growing** once the build maxes (which now happens early). Combined with the
-front-loaded curve, an average build is `OVERWHELMED` by ~15:00 and **does not
-reach the 20:00 boss**; boss single-target TTK is also ≈100s. Skill doesn't fix
-this — a perfect-answer player just reaches the same ceiling sooner.
+VS's tame passive caps capped clear-DPS, which made the run un-completable after
+the passive port. **Evolutions fix this**: a maxed weapon + maxed required passive
++ level ≥ 40 evolves into a ~2× form, lifting the ceiling enough to reach and beat
+the boss. Remaining levers if we want to shift difficulty further:
+- shift `EVOLVE_MIN_LEVEL` (earlier = easier mid-game, later = tenser),
+- tune evolved-weapon stats (the ceiling height),
+- wire **Curse** as a player-chosen risk/reward difficulty lever (still inert).
 
-The real fix is **lifting the player ceiling**, not softening enemies:
-- scale weapon base damage harder per level, and/or
-- wire the **VS evolutions** (maxed weapon + required passive → evolved form = a
-  big DPS jump), and/or
-- wire **Curse** as a player-chosen risk/reward difficulty lever.
-
-Until then the run is intentionally tuned "hard and short" for feel-testing.
 Re-run the sim after any change.
 
 ## Re-running the simulator

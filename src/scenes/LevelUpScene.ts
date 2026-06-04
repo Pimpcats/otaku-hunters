@@ -437,7 +437,7 @@ export class LevelUpScene extends Phaser.Scene {
     this.add.text(cx, 96, banner, { fontFamily: 'system-ui', fontSize: '24px', color: bColor, fontStyle: 'bold' }).setOrigin(0.5).setDepth(11);
     this.add.text(cx, 132, 'Tap an upgrade', { fontFamily: 'system-ui', fontSize: '15px', color: '#8890b5' }).setOrigin(0.5).setDepth(11);
 
-    const offers = this.payload.loadout.offer(3);
+    const offers = this.payload.loadout.offer(3, this.payload.level);
     const cardW = 220;
     const cardH = 210;
     const gap = 24;
