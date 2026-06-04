@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     VitePWA({
+      // DEV-TIME: ship a self-destroying service worker. It unregisters any
+      // previously-installed SW and clears its caches on next visit, so rapid
+      // redeploys can't leave testers on a stale/blank cached build. Re-enable
+      // the full PWA (remove this flag) before a real launch.
+      selfDestroying: true,
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png'],
       manifest: {
