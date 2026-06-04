@@ -4,7 +4,7 @@
 
 import Phaser from 'phaser';
 import { TEX, COLORS } from '../constants';
-import { WEAPONS } from '../data/balance';
+import { WEAPONS, type WeaponDef } from '../data/balance';
 import type { PlayerLoadout } from './loadout';
 
 type Sprite = Phaser.Physics.Arcade.Sprite;
@@ -35,8 +35,8 @@ export class WeaponManager {
       const cd = base.cooldown * s.haste;
       if (time - (this.lastFire[id] ?? -99999) < cd) continue;
       this.lastFire[id] = time;
-      if (def.kind === 'projectile') this.fireProjectile(px, py, base, s, enemies);
-      else this.pulseAura(px, py, base, s, enemies, deal);
+      if (def.kind === 'projectile') this.fireProjectile(px, py, base, s, enemies, def);
+      else this.pulseAura(px, py, base, s, enemies, deal, def);
     }
   }
 
@@ -46,6 +46,7 @@ export class WeaponManager {
     base: { damage: number; amount: number; speed: number; pierce: number; range: number },
     s: { might: number; amount: number; area: number; projSpeed: number },
     enemies: Phaser.Physics.Arcade.Group,
+    def: WeaponDef,
   ) {
     const reach = base.range * s.projSpeed;
     const target = this.nearest(px, py, enemies, reach);
@@ -55,7 +56,7 @@ export class WeaponManager {
     const spread = Phaser.Math.DegToRad(11);
     const start = -((count - 1) / 2) * spread;
     for (let i = 0; i < count; i++) {
-      this.spawnBullet(px, py, angle + start + i * spread, base, s);
+      this.spawnBullet(px, py, angle + start + i * spread, base, s, def);
     }
   }
 
@@ -65,12 +66,15 @@ export class WeaponManager {
     angle: number,
     base: { damage: number; speed: number; pierce: number; range: number },
     s: { might: number; area: number; projSpeed: number },
+    def: WeaponDef,
   ) {
     const b = this.bullets.get(px, py, TEX.bullet) as Sprite | null;
     if (!b) return;
     b.enableBody(true, px, py, true, true);
     b.setBlendMode(Phaser.BlendModes.ADD);
-    b.setScale(s.area);
+    b.setScale(s.area * (def.projScale ?? 1));
+    if (def.tint !== undefined) b.setTint(def.tint);
+    else b.clearTint();
     b.setData('damage', base.damage * s.might);
     b.setData('pierce', base.pierce);
     b.setData('hits', new Set<Phaser.GameObjects.GameObject>());
@@ -102,8 +106,10 @@ export class WeaponManager {
     s: { might: number; area: number },
     enemies: Phaser.Physics.Arcade.Group,
     deal: DealDamage,
+    def: WeaponDef,
   ) {
     const radius = AURA_BASE_RADIUS * s.area;
+    const ringColor = def.tint ?? COLORS.player;
     const dmg = base.damage * s.might;
     const r2 = radius * radius;
     for (const obj of enemies.getChildren()) {
@@ -116,10 +122,11 @@ export class WeaponManager {
     // visual flash
     if (!this.auraRing) {
       this.auraRing = this.scene.add
-        .circle(px, py, radius, COLORS.player, 0.18)
+        .circle(px, py, radius, ringColor, 0.18)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(45);
     }
+    this.auraRing.setFillStyle(ringColor, 0.32);
     this.auraRing.setPosition(px, py).setRadius(radius).setAlpha(0.32).setVisible(true);
     this.scene.tweens.add({ targets: this.auraRing, alpha: 0, duration: 260 });
   }

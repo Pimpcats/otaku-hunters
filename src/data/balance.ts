@@ -45,13 +45,14 @@ export type StatId =
   | 'maxHp'
   | 'regen'
   | 'magnet'
-  // ── Ported from VS, NOT yet wired (inert until their systems exist) ──
+  // ── Ported from VS, wired into RunScene ──
   | 'armor' // flat incoming-damage reduction → onPlayerHit
   | 'growth' // XP-gain multiplier → gem/word pickup
-  | 'greed' // gold-gain multiplier → (no economy yet)
-  | 'luck' // luck multiplier → drop rolls
-  | 'curse' // enemy-stat multiplier → spawner/enemyStatsAt
-  | 'revival'; // extra revives → gameOver
+  | 'luck' // luck multiplier → word-token drop rolls
+  | 'curse' // enemy-stat multiplier → spawnEnemy
+  | 'revival' // extra revives → gameOver
+  // ── Still inert: no gold economy exists, so greed has nothing to consume ──
+  | 'greed'; // gold-gain multiplier → (no economy yet)
 
 export interface PassiveSpec {
   perLevel: number;
@@ -72,10 +73,10 @@ export const PASSIVES: Record<StatId, PassiveSpec> = {
   maxHp: { perLevel: 10, max: 3 }, // VS Max Health: +10% of base / level
   regen: { perLevel: 0.1, max: 5 }, // VS Recovery: +0.1 hp/s / level
   magnet: { perLevel: 0.25, max: 2 }, // VS Magnet: +25% pickup radius / level
-  // Ported but inert (see StatId note) — gated out of the live offer pool.
+  // Ported from VS, wired into RunScene (greed excepted — no economy yet).
   armor: { perLevel: 1, max: 3 }, // VS Armor: -1 incoming damage / level
   growth: { perLevel: 0.03, max: 5 }, // VS Growth: +3% XP gain / level
-  greed: { perLevel: 0.1, max: 5 }, // VS Greed: +10% gold gain / level
+  greed: { perLevel: 0.1, max: 5 }, // VS Greed: +10% gold gain / level (inert)
   luck: { perLevel: 0.1, max: 3 }, // VS Luck: +10% luck / level
   curse: { perLevel: 0.1, max: 5 }, // VS Curse: +10% enemy stats / level
   revival: { perLevel: 1, max: 1 }, // VS Revival: +1 resurrection
@@ -91,7 +92,7 @@ export interface DerivedStats {
   maxHp: number; // absolute max HP
   regen: number; // hp/s
   magnet: number; // pickup radius multiplier
-  // Ported from VS — derived and ready to consume, but no system reads them yet.
+  // Ported from VS — consumed by RunScene (greed still unused: no economy).
   armor: number; // flat incoming-damage reduction
   growth: number; // XP-gain multiplier
   greed: number; // gold-gain multiplier
@@ -150,6 +151,9 @@ export interface WeaponDef {
   // Japanese-learning level-up, same as every other upgrade.
   evolvesTo?: string; // weapon id of the evolved form
   evolveRequires?: StatId; // passive that must be owned to evolve
+  // ── Visual identity (so each weapon reads distinctly on screen) ──
+  tint?: number; // multiplies the bullet texture; for auras, tints the pulse ring
+  projScale?: number; // extra projectile scale on top of the Area stat (default 1)
 }
 
 export const WEAPONS: Record<string, WeaponDef> = {
@@ -161,6 +165,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
     maxLevel: 8,
     evolvesTo: 'pocky_evo',
     evolveRequires: 'might',
+    tint: 0xff7ab8, // pink pocky stick
+    projScale: 1.15,
     level: (L) => ({
       damage: 13 + 5 * (L - 1),
       cooldown: Math.max(360, 600 - 28 * (L - 1)),
@@ -178,6 +184,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     maxLevel: 8,
     evolvesTo: 'aura_evo',
     evolveRequires: 'area',
+    tint: 0x9d7bff, // otaku-purple ring
     level: (L) => ({
       damage: 5 + 3 * (L - 1),
       cooldown: Math.max(480, 900 - 52 * (L - 1)),
@@ -195,6 +202,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
     maxLevel: 8,
     evolvesTo: 'shuriken_evo',
     evolveRequires: 'projSpeed',
+    tint: 0xd8ecff, // steel-white stars
+    projScale: 0.8,
     level: (L) => ({
       damage: 7 + 3 * (L - 1),
       cooldown: Math.max(260, 420 - 20 * (L - 1)),
@@ -216,6 +225,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
     name: 'Pocky Overdrive',
     kind: 'projectile',
     maxLevel: 1,
+    tint: 0xff3df0,
+    projScale: 1.5,
     level: () => ({ damage: 62, cooldown: 330, amount: 4, speed: 720, pierce: 4, range: 1000 }),
   },
   aura_evo: {
@@ -223,6 +234,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     name: 'Cosmic Otaku Aura',
     kind: 'aura',
     maxLevel: 1,
+    tint: 0xff7ae0,
     level: () => ({ damage: 40, cooldown: 420, amount: 1, speed: 0, pierce: 999, range: 0 }),
   },
   shuriken_evo: {
@@ -230,6 +242,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
     name: 'Thousand Cuts',
     kind: 'projectile',
     maxLevel: 1,
+    tint: 0x8af6ff,
+    projScale: 0.9,
     level: () => ({ damage: 30, cooldown: 150, amount: 8, speed: 600, pierce: 4, range: 560 }),
   },
 };

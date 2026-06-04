@@ -39,8 +39,12 @@ export const PLAYER_SHEET = {
   displayHeight: 56,
   /** Where the gameplay hitbox sits within the frame (fraction of w/h). */
   bodyCenter: { x: 0.5, y: 0.6 },
-  /** Which roster characters show this art. 'all' = every pick uses it. */
-  characters: 'all' as 'all' | string[],
+  /** Which roster characters show this art. 'all' = every pick uses it; [] =
+   *  none (every class keeps its distinct procedural chibi). We only have ONE
+   *  real sheet (the goth girl), so applying it to 'all' made the three classes
+   *  look identical — kept empty until there's per-class art. Add ids (e.g.
+   *  ['ronin']) to map this sheet to specific classes. */
+  characters: [] as 'all' | string[],
 };
 
 const REGISTRY_FLAG = 'gothSheetActive';

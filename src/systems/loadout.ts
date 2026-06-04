@@ -46,14 +46,17 @@ export const UPGRADES: UpgradeDef[] = [
   { id: 'p_regen', name: 'Healing Charm', desc: '+0.1 HP/sec', kind: 'passive', statId: 'regen', max: PASSIVES.regen.max },
   { id: 'p_magnet', name: "Collector's Magnet", desc: '+25% pickup range', kind: 'passive', statId: 'magnet', max: PASSIVES.magnet.max },
 
-  // ── Ported from VS, inert until wired (kept out of the offer pool). Names keep
-  //    the Japanese-study theme so they slot straight in once their systems land.
-  { id: 'p_armor', name: 'Kotatsu Blanket', desc: '−1 damage taken', kind: 'passive', statId: 'armor', max: PASSIVES.armor.max, wired: false },
-  { id: 'p_growth', name: 'Study Streak', desc: '+3% XP gain', kind: 'passive', statId: 'growth', max: PASSIVES.growth.max, wired: false },
+  // ── Ported from VS, now wired into gameplay (RunScene consumes each). Names
+  //    keep the Japanese-study theme.
+  { id: 'p_armor', name: 'Kotatsu Blanket', desc: '−1 damage taken', kind: 'passive', statId: 'armor', max: PASSIVES.armor.max },
+  { id: 'p_growth', name: 'Study Streak', desc: '+3% XP gain', kind: 'passive', statId: 'growth', max: PASSIVES.growth.max },
+  { id: 'p_luck', name: 'Maneki-neko', desc: '+10% word-token drops', kind: 'passive', statId: 'luck', max: PASSIVES.luck.max },
+  { id: 'p_curse', name: 'Cursed Manga', desc: '+10% enemy strength & XP', kind: 'passive', statId: 'curse', max: PASSIVES.curse.max },
+  { id: 'p_revival', name: 'Extra Life', desc: 'Revive once on death', kind: 'passive', statId: 'revival', max: PASSIVES.revival.max },
+
+  // Still inert — no economy/shop exists for gold yet, so this stays out of the
+  // offer pool (no dead card). Wire it if/when a gold sink lands.
   { id: 'p_greed', name: 'Gachapon Luck', desc: '+10% gold gain', kind: 'passive', statId: 'greed', max: PASSIVES.greed.max, wired: false },
-  { id: 'p_luck', name: 'Maneki-neko', desc: '+10% luck', kind: 'passive', statId: 'luck', max: PASSIVES.luck.max, wired: false },
-  { id: 'p_curse', name: 'Cursed Manga', desc: '+10% enemy strength (more loot)', kind: 'passive', statId: 'curse', max: PASSIVES.curse.max, wired: false },
-  { id: 'p_revival', name: 'Extra Life', desc: 'Revive once on death', kind: 'passive', statId: 'revival', max: PASSIVES.revival.max, wired: false },
 ];
 
 export const HEAL_UPGRADE: UpgradeDef = {
