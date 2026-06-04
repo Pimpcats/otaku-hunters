@@ -245,7 +245,14 @@ export class RunScene extends Phaser.Scene {
     }
     if (word) {
       speakJa(word.jp);
-      this.floatLabel(this.player.x, this.player.y - 24, `${word.jp}  ${word.en}`, COLORS.word);
+      // jp + romaji + english, held a few seconds then a slow fade so it's readable
+      const romaji = word.romaji ? `  (${word.romaji})` : '';
+      this.floatLabel(this.player.x, this.player.y - 28, `${word.jp}${romaji}\n${word.en}`, COLORS.word, {
+        hold: 2400,
+        fade: 1400,
+        size: 20,
+        rise: 26,
+      });
     }
   };
 
@@ -291,17 +298,29 @@ export class RunScene extends Phaser.Scene {
     this.time.delayedCall(320, () => e.destroy());
   }
 
-  private floatLabel(x: number, y: number, text: string, color: number) {
+  private floatLabel(
+    x: number,
+    y: number,
+    text: string,
+    color: number,
+    opts: { hold?: number; fade?: number; size?: number; rise?: number } = {},
+  ) {
+    const { hold = 0, fade = 900, size = 16, rise = 36 } = opts;
     const t = this.add
       .text(x, y, text, {
         fontFamily: 'system-ui',
-        fontSize: '16px',
+        fontSize: `${size}px`,
         color: '#' + color.toString(16).padStart(6, '0'),
         fontStyle: 'bold',
+        align: 'center',
+        stroke: '#0b0d1a',
+        strokeThickness: 4,
       })
       .setOrigin(0.5)
       .setDepth(200);
-    this.tweens.add({ targets: t, y: y - 36, alpha: 0, duration: 900, ease: 'Cubic.out', onComplete: () => t.destroy() });
+    // Drift up slowly over the whole life; stay solid for `hold`, then fade.
+    this.tweens.add({ targets: t, y: y - rise, duration: hold + fade, ease: 'Sine.out' });
+    this.tweens.add({ targets: t, alpha: 0, delay: hold, duration: fade, onComplete: () => t.destroy() });
   }
 
   private banner(text: string, color: number) {

@@ -110,7 +110,9 @@ export class LevelUpScene extends Phaser.Scene {
           width,
           build: (x) => {
             this.add.rectangle(x + width / 2, y, width, chipH, fill).setStrokeStyle(2, isVerb ? 0x9affc0 : 0x5560a0);
-            label.setPosition(x + width / 2, y);
+            // label was created first (to measure) so the rect would cover it —
+            // reposition AND lift it above the rectangle.
+            label.setPosition(x + width / 2, y).setDepth(5);
           },
         });
       }
