@@ -99,10 +99,11 @@ export class MetaScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
 
-    // The character's actual generated placeholder sprite, scaled up.
-    const sprite = this.add
-      .image(0, -h / 2 + 70, dirTextureKey(c.texture, 'down'))
-      .setScale(3.4);
+    // The character's actual sprite, scaled to a fixed portrait height (works
+    // for both the small procedural art and the large baked sheet frames).
+    const PORTRAIT_H = 88;
+    const sprite = this.add.image(0, -h / 2 + 72, dirTextureKey(c.texture, 'down'));
+    sprite.setScale(PORTRAIT_H / sprite.height);
 
     const name = this.add
       .text(0, -h / 2 + 124, c.name, {

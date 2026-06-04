@@ -23,25 +23,25 @@ export const CHARACTERS: CharacterDef[] = [
   {
     id: 'kohai',
     name: '後輩 Kōhai',
-    blurb: 'kōhai · "junior"\nBalanced all-rounder. Reliable Pocky Shooter.',
+    blurb: 'kōhai · "junior"\nBalanced all-rounder. Eager student: +XP gain.',
     themeColor: 0x6ad7ff,
     texture: 'char_kohai',
     startWeapon: 'pocky',
     baseMaxHp: 100,
     baseMoveSpeed: 220,
-    startStats: {},
+    startStats: { growth: 1 }, // diligent junior levels a little faster
     art: { size: 24, body: 0x6ad7ff, accent: 0xffffff, shape: 'round', accessory: 'headband' },
   },
   {
     id: 'sensei',
     name: '先生 Sensei',
-    blurb: 'sensei · "teacher"\nSturdy & slow. Otaku Aura hits all around you.',
+    blurb: 'sensei · "teacher"\nSturdy & slow. Armored veteran: regen + −dmg.',
     themeColor: 0x7CFF9E,
     texture: 'char_sensei',
     startWeapon: 'aura',
     baseMaxHp: 140,
     baseMoveSpeed: 184,
-    startStats: { regen: 1 },
+    startStats: { regen: 1, armor: 1 }, // tanky teacher shrugs off chip damage
     art: { size: 26, body: 0x7CFF9E, accent: 0xffe08a, shape: 'round', accessory: 'glasses' },
   },
   {

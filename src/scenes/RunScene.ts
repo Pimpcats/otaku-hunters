@@ -67,6 +67,7 @@ export class RunScene extends Phaser.Scene {
   private won = false;
   private bossSpawned = false;
   private boss: Sprite | null = null;
+  private revivesUsed = 0; // Extra Life passives consumed this run
 
   private collectedWords = new Map<string, Word>();
   private collectedSet = new Set<string>();
@@ -90,6 +91,7 @@ export class RunScene extends Phaser.Scene {
     this.won = false;
     this.bossSpawned = false;
     this.boss = null;
+    this.revivesUsed = 0;
     this.collectedWords = new Map();
     this.collectedSet = new Set();
     this.recentSids = [];
@@ -170,6 +172,8 @@ export class RunScene extends Phaser.Scene {
     const arc = ARCHETYPES[key];
     if (!arc) return;
     const st = enemyStatsAt(key, this.elapsed);
+    // Cursed Manga (curse): tougher, faster enemies that also pay out more XP.
+    const curse = this.loadout.stats().curse;
     const e = this.enemies.get(x, y, dirTextureKey(arc.texture, 'down')) as Sprite | null;
     if (!e) return;
     e.enableBody(true, x, y, true, true);
@@ -178,16 +182,16 @@ export class RunScene extends Phaser.Scene {
     e.setFlipX(false);
     e.setDepth(40);
     e.clearTint();
-    e.setData('speed', st.speed);
+    e.setData('speed', Math.round(st.speed * curse));
     e.setData('tint', undefined);
     e.setData('face', 'down');
     e.setData('faceSet', ''); // force applyFacing to refresh this recycled sprite
     e.setData('faceState', '');
     const edata: EnemyData = {
       archetype: arc,
-      hp: st.hp,
-      contact: st.contact,
-      xp: st.xp,
+      hp: Math.round(st.hp * curse),
+      contact: Math.round(st.contact * curse),
+      xp: Math.max(1, Math.round(st.xp * curse)),
       wanderAngle: Phaser.Math.FloatBetween(0, Math.PI * 2),
       flipTimer: 0,
     };
@@ -257,7 +261,9 @@ export class RunScene extends Phaser.Scene {
     }
     this.burst(x, y, ed.archetype.color);
     this.dropGem(x, y, ed.xp);
-    if (ed.archetype.dropsWord || Math.random() < WORD_DROP_CHANCE) this.dropWord(x, y);
+    // Maneki-neko (luck): better odds a kill coughs up a word token.
+    const dropChance = WORD_DROP_CHANCE * this.loadout.stats().luck;
+    if (ed.archetype.dropsWord || Math.random() < dropChance) this.dropWord(x, y);
     e.disableBody(true, true);
     this.enemies.killAndHide(e);
   }
@@ -268,7 +274,9 @@ export class RunScene extends Phaser.Scene {
     const ed = (eObj as Sprite).getData('edata') as EnemyData | undefined;
     if (!ed) return;
     this.lastHit = this.time.now;
-    this.hp -= ed.contact;
+    // Kotatsu Blanket (armor): flat damage reduction, but a hit always stings ≥1.
+    const dmg = Math.max(1, ed.contact - this.loadout.stats().armor);
+    this.hp -= dmg;
     this.cameras.main.shake(120, 0.006);
     this.player.setTintFill(0xff5a5a);
     this.time.delayedCall(90, () => this.player.clearTint());
@@ -281,7 +289,7 @@ export class RunScene extends Phaser.Scene {
     const value = (g.getData('xp') as number) ?? 1;
     g.disableBody(true, true);
     this.gems.killAndHide(g);
-    this.xp += value;
+    this.xp += value * this.loadout.stats().growth; // Study Streak (growth): +XP
     this.checkLevelUp();
   };
 
@@ -291,7 +299,7 @@ export class RunScene extends Phaser.Scene {
     const word = w.getData('word') as Word;
     // XP boost: scales with level, decays the longer it sat on the ground.
     const age = (this.time.now - ((w.getData('dropTime') as number) ?? this.time.now)) / 1000;
-    const gain = wordTokenXp(this.level, age);
+    const gain = Math.round(wordTokenXp(this.level, age) * this.loadout.stats().growth);
     w.disableBody(true, true);
     this.wordTokens.killAndHide(w);
     this.xp += gain;
@@ -443,6 +451,17 @@ export class RunScene extends Phaser.Scene {
   // ── end states ──────────────────────────────────────────────────────────────
   private gameOver() {
     if (this.dead || this.won) return;
+    // Extra Life (revival): spend a charge to spring back at full HP with a
+    // brief window of invulnerability instead of dying.
+    if (this.revivesUsed < this.loadout.stats().revival) {
+      this.revivesUsed += 1;
+      this.hp = this.maxHp;
+      this.lastHit = this.time.now + 1200; // ~1.8s of i-frames to get clear
+      this.cameras.main.flash(220, 180, 255, 200);
+      this.banner('REVIVED!', COLORS.xpBar);
+      this.player.clearTint();
+      return;
+    }
     this.dead = true;
     this.endScreen('YOU DIED', COLORS.hp);
   }
