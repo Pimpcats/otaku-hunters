@@ -8,6 +8,7 @@ import {
   gradeFromBuild,
   type Puzzle,
   type BuildPuzzle,
+  type TranslatePuzzle,
   type AnyPuzzle,
 } from '../systems/puzzle';
 import { GRADE_STACKS, NOPE_HEAL, type Grade } from '../data/balance';
@@ -103,20 +104,22 @@ export class LevelUpScene extends Phaser.Scene {
     }
 
     if (this.puzzle.kind === 'particle') {
-      this.renderPrompt(cx, 'Build it in Japanese — pick the missing particle');
+      this.renderPrompt(cx, 'Build it in Japanese — pick the missing particle', this.puzzle.promptEn);
       this.renderSentence(cx);
       this.renderOptions(cx);
-    } else {
-      this.renderPrompt(cx, 'Put the words in the right order');
+    } else if (this.puzzle.kind === 'build') {
+      this.renderPrompt(cx, 'Put the words in the right order', this.puzzle.promptEn);
       this.renderBuild(cx);
+    } else {
+      this.renderTranslate(cx);
     }
     this.renderTimer();
   }
 
   // ── puzzle phase ─────────────────────────────────────────────────────────
-  private renderPrompt(cx: number, subtitle: string) {
+  private renderPrompt(cx: number, subtitle: string, promptEn: string) {
     this.add.text(cx, 84, subtitle, { fontFamily: 'system-ui', fontSize: '15px', color: '#8890b5' }).setOrigin(0.5);
-    this.add.text(cx, 124, `“${this.puzzle!.promptEn}”`, { fontFamily: 'system-ui', fontSize: '24px', color: '#ffffff', fontStyle: 'italic', wordWrap: { width: GAME_WIDTH - 120 }, align: 'center' }).setOrigin(0.5);
+    this.add.text(cx, 124, `“${promptEn}”`, { fontFamily: 'system-ui', fontSize: '24px', color: '#ffffff', fontStyle: 'italic', wordWrap: { width: GAME_WIDTH - 120 }, align: 'center' }).setOrigin(0.5);
   }
 
   private renderSentence(cx: number) {
@@ -265,7 +268,8 @@ export class LevelUpScene extends Phaser.Scene {
   }
 
   private onTrayTap(chip: TrayChip) {
-    if (this.phase !== 'puzzle' || chip.used || !this.puzzle) return;
+    if (this.phase !== 'puzzle' || chip.used || !this.puzzle || this.puzzle.kind !== 'build') return;
+    const sentence = this.puzzle.sentence;
     const expected = this.buildOrder[this.buildPlaced];
     if (chip.word.jp === expected.jp) {
       chip.used = true;
@@ -273,7 +277,7 @@ export class LevelUpScene extends Phaser.Scene {
       this.tweens.add({ targets: chip.container, alpha: 0.22, duration: 150 });
 
       const slot = this.buildSlots[this.buildPlaced];
-      const isVerb = expected === this.puzzle.sentence.verb;
+      const isVerb = expected === sentence.verb;
       slot.rect.setFillStyle(isVerb ? COLORS.verb : COLORS.correct, 1).setStrokeStyle(2, 0x9affc0);
       const t = this.add.text(slot.x, slot.rect.y, expected.jp, { fontFamily: 'system-ui', fontSize: '22px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(6);
       if (t.width > slot.width - 8) t.setScale((slot.width - 8) / t.width);
@@ -282,7 +286,7 @@ export class LevelUpScene extends Phaser.Scene {
       this.buildPlaced++;
       if (this.buildPlaced === this.buildOrder.length) {
         this.solved = true;
-        speakJa(this.puzzle.sentence.jp);
+        speakJa(sentence.jp);
         this.toUpgrades(gradeFromBuild(this.buildMistakes, false));
       }
     } else {
@@ -294,6 +298,70 @@ export class LevelUpScene extends Phaser.Scene {
       this.time.delayedCall(260, () => {
         if (!chip.used) chip.bg.setFillStyle(COLORS.chip);
       });
+    }
+  }
+
+  // ── translate (vocabulary recall) ──────────────────────────────────────────
+  private renderTranslate(cx: number) {
+    const p = this.puzzle as TranslatePuzzle;
+    const subtitle = p.direction === 'jp2en' ? 'What does this word mean?' : 'Pick the Japanese word';
+    this.add.text(cx, 84, subtitle, { fontFamily: 'system-ui', fontSize: '15px', color: '#8890b5' }).setOrigin(0.5);
+
+    // The prompt word, large. Voice it when the prompt itself is Japanese.
+    const big = p.direction === 'jp2en';
+    this.add.text(cx, 148, p.prompt, {
+      fontFamily: 'system-ui',
+      fontSize: big ? '42px' : '30px',
+      color: big ? '#ffffff' : '#ffd166',
+      fontStyle: 'bold',
+      align: 'center',
+      wordWrap: { width: GAME_WIDTH - 120 },
+    }).setOrigin(0.5);
+    if (big) speakJa(p.prompt);
+
+    const isJpOption = p.direction === 'en2jp';
+    const btnW = 440;
+    const btnH = 46;
+    const gap = 12;
+    const n = p.options.length;
+    let y = 224 - ((n - 1) * (btnH + gap)) / 2 + 30;
+    for (const opt of p.options) {
+      const container = this.add.container(cx, y);
+      const bg = this.add.rectangle(0, 0, btnW, btnH, COLORS.chip).setStrokeStyle(2, 0x5560a0).setInteractive({ useHandCursor: true });
+      const txt = this.add.text(0, 0, opt, {
+        fontFamily: 'system-ui',
+        fontSize: isJpOption ? '26px' : '20px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        align: 'center',
+        wordWrap: { width: btnW - 24 },
+      }).setOrigin(0.5);
+      container.add([bg, txt]);
+      container.setData('bg', bg);
+      bg.on('pointerup', () => this.chooseTranslate(opt, container));
+      y += btnH + gap;
+    }
+
+    const skip = this.add.text(cx, 414, 'skip ▸', { fontFamily: 'system-ui', fontSize: '16px', color: '#8890b5' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    skip.on('pointerup', () => {
+      if (this.phase === 'puzzle') this.toUpgrades('nope');
+    });
+  }
+
+  private chooseTranslate(opt: string, container: Phaser.GameObjects.Container) {
+    if (this.phase !== 'puzzle' || !this.puzzle || this.puzzle.kind !== 'translate') return;
+    const bg = container.getData('bg') as Phaser.GameObjects.Rectangle;
+    if (opt === this.puzzle.correct) {
+      this.solved = true;
+      bg.setFillStyle(COLORS.correct);
+      speakJa(this.puzzle.speak);
+      this.toUpgrades(gradeFromAttempts(this.firstTry, false));
+    } else {
+      this.firstTry = false;
+      bg.setFillStyle(COLORS.wrong);
+      bg.disableInteractive();
+      this.cameras.main.shake(110, 0.004);
+      this.tweens.add({ targets: container, x: container.x + 6, duration: 50, yoyo: true, repeat: 3 });
     }
   }
 
@@ -334,12 +402,18 @@ export class LevelUpScene extends Phaser.Scene {
     }
   }
 
+  /** Sentence id of the current puzzle (translate puzzles are word-level → none). */
+  private currentSid(): string | undefined {
+    return this.puzzle && this.puzzle.kind !== 'translate' ? this.puzzle.sentence.sid : undefined;
+  }
+
   // ── upgrade phase ────────────────────────────────────────────────────────
   private toUpgrades(grade: Grade) {
     if (this.phase !== 'puzzle') return;
     this.phase = 'upgrade';
     this.timerEvent?.stop();
-    if (this.puzzle) recordGrade(this.puzzle.sentence.sid, grade);
+    const sid = this.currentSid();
+    if (sid) recordGrade(sid, grade); // translate puzzles are word-level (no sid)
 
     const stacks = GRADE_STACKS[grade];
     // A short beat so a correct answer reads before the cards appear.
@@ -410,7 +484,7 @@ export class LevelUpScene extends Phaser.Scene {
     }
 
     const onComplete = this.payload.onComplete;
-    const sid = this.puzzle?.sentence.sid;
+    const sid = this.currentSid();
     this.scene.stop();
     this.scene.resume('Run');
     onComplete({ grade, heal, sid, answerParticle: this.answerParticle });

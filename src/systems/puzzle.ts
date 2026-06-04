@@ -40,7 +40,19 @@ export interface BuildPuzzle {
   scrambled: Word[]; // the same words, shuffled, for the tray
 }
 
-export type AnyPuzzle = Puzzle | BuildPuzzle;
+export type AnyPuzzle = Puzzle | BuildPuzzle | TranslatePuzzle;
+
+/** Vocabulary recall: show a word in one language, pick its meaning in the
+ *  other. The most beginner-friendly mode and the early-game foundation. */
+export interface TranslatePuzzle {
+  kind: 'translate';
+  word: Word;
+  direction: 'jp2en' | 'en2jp';
+  prompt: string; // the shown side
+  speak: string; // the jp to voice on solve
+  options: string[]; // answer-side choices (shuffled)
+  correct: string; // correct answer-side string
+}
 
 /** Words collected this run; we only need their jp surface forms for matching. */
 export type CollectedPool = Set<string>;
@@ -57,7 +69,10 @@ export interface PickOpts {
   recentParticles?: string[];
 }
 
-type Mode = 'particle' | 'build';
+type Mode = 'particle' | 'build' | 'translate';
+
+// Content-word POS worth quizzing as vocabulary (skip particles/copula/aux).
+const VOCAB_POS = new Set<string>(['n', 'v', 'adj', 'adv', 'expr']);
 
 function countCollected(s: IndexedSentence, pool: CollectedPool): number {
   return s.roleWords.reduce((n, w) => n + (pool.has(w.jp) ? 1 : 0), 0);
@@ -151,25 +166,53 @@ export function selectSentence(
   return pickWeighted(cands, pool, 'particle');
 }
 
+/** Decide a weighted, fallback-ordered list of modes for this level. The
+ *  curriculum mirrors how you actually learn: VOCAB (translate) → WORD ORDER
+ *  (build) → PARTICLES (the intermediate "glue"), each fading in/out by level. */
+function modeOrder(level: number): Mode[] {
+  const particle = clamp(0.07 * (level - 3), 0, 0.6); // 0 until ~L4 → 60% cap
+  const remainder = 1 - particle;
+  const translateRaw = clamp(0.75 - 0.07 * level, 0.1, 0.75); // vocab dominant early
+  const translate = remainder * translateRaw;
+  const build = remainder * (1 - translateRaw);
+
+  const weighted: [Mode, number][] = [
+    ['translate', translate],
+    ['build', build],
+    ['particle', particle],
+  ];
+  const total = translate + build + particle || 1;
+  let r = Math.random() * total;
+  let primary: Mode = 'build';
+  for (const [m, w] of weighted) {
+    r -= w;
+    if (r <= 0) {
+      primary = m;
+      break;
+    }
+  }
+  // primary first, then the rest by weight (build is the safest fallback)
+  const rest = weighted.filter(([m]) => m !== primary).sort((a, b) => b[1] - a[1]).map(([m]) => m);
+  return [primary, ...rest];
+}
+
+function buildForMode(mode: Mode, stage: ResolvedStage, pool: CollectedPool, opts: PickOpts): AnyPuzzle | null {
+  if (mode === 'translate') return buildTranslate(stage, pool);
+  const cands = candidatesFor(stage, pool, opts, mode);
+  const s = pickWeighted(cands, pool, mode, opts.recentParticles);
+  if (!s) return null;
+  return mode === 'particle' ? buildTierA(s, opts.distractors, opts.recentParticles) : buildBuild(s);
+}
+
 /**
- * Unified level-up puzzle picker. Particles are an intermediate skill, so the
- * curriculum LEADS with word-order (build) and RAMPS particles in by level:
- * none for the first few levels (when you barely know the words), then a
- * growing share so particles become the mid/late-game focus. Selects a fitting,
- * varied, skew-corrected sentence; falls back to the other mode if one has no
- * candidates; null only if the stage has neither.
+ * Unified level-up puzzle picker. Chooses a MODE by the level-based curriculum
+ * (vocab → word-order → particles), then builds a fitting, varied,
+ * skew-corrected puzzle. Falls back through the other modes if one has no
+ * candidates; null only if none do.
  */
 export function pickPuzzle(stage: ResolvedStage, pool: CollectedPool, opts: PickOpts): AnyPuzzle | null {
-  // 0% particles until ~level 4, then fade in toward a 60% cap (mid/late focus).
-  const particleShare = clamp(0.07 * (opts.level - 3), 0, 0.6);
-  const first: Mode = Math.random() < particleShare ? 'particle' : 'build';
-  const order: Mode[] = first === 'particle' ? ['particle', 'build'] : ['build', 'particle'];
-
-  for (const mode of order) {
-    const cands = candidatesFor(stage, pool, opts, mode);
-    const s = pickWeighted(cands, pool, mode, opts.recentParticles);
-    if (!s) continue;
-    const puzzle = mode === 'particle' ? buildTierA(s, opts.distractors, opts.recentParticles) : buildBuild(s);
+  for (const mode of modeOrder(opts.level)) {
+    const puzzle = buildForMode(mode, stage, pool, opts);
     if (puzzle) return puzzle;
   }
   return null;
@@ -237,6 +280,52 @@ export function buildBuild(sentence: IndexedSentence): BuildPuzzle | null {
     scrambled = shuffle(order.slice());
   }
   return { kind: 'build', sentence, promptEn: sentence.en, order, scrambled };
+}
+
+/** Build a vocabulary-recall puzzle from the stage word pool. Picks a content
+ *  word (favouring collected ones), a translation direction, and same-POS
+ *  distractors so the choices are plausible. */
+export function buildTranslate(
+  stage: ResolvedStage,
+  pool: CollectedPool,
+): TranslatePuzzle | null {
+  const all = stage.wordPool.filter((w) => VOCAB_POS.has(w.pos) && w.en && w.jp);
+  if (all.length < 2) return null;
+
+  // Prefer testing words the player has actually collected.
+  const collected = all.filter((w) => pool.has(w.jp));
+  const src = collected.length >= 2 && Math.random() < 0.85 ? collected : all;
+  const word = src[Math.floor(Math.random() * src.length)];
+
+  const direction: TranslatePuzzle['direction'] = Math.random() < 0.5 ? 'jp2en' : 'en2jp';
+  const displayOf = (w: Word) => (direction === 'jp2en' ? w.en : w.jp);
+  const correctDisplay = displayOf(word);
+
+  // Distractors: same POS first (more plausible), else any other vocab word.
+  const samePos = all.filter((w) => w.pos === word.pos && w.jp !== word.jp && w.en !== word.en);
+  const distractorPool = samePos.length >= 3 ? samePos : all.filter((w) => w.jp !== word.jp && w.en !== word.en);
+
+  const seen = new Set<string>([correctDisplay]);
+  const distractors: string[] = [];
+  for (const w of shuffle(distractorPool.slice())) {
+    const d = displayOf(w);
+    if (!seen.has(d)) {
+      seen.add(d);
+      distractors.push(d);
+    }
+    if (distractors.length >= 3) break;
+  }
+  if (distractors.length === 0) return null;
+
+  return {
+    kind: 'translate',
+    word,
+    direction,
+    prompt: direction === 'jp2en' ? word.jp : word.en,
+    speak: word.jp,
+    options: shuffle([correctDisplay, ...distractors]),
+    correct: correctDisplay,
+  };
 }
 
 /** Index into `idxs` chosen weighted-randomly by `weights`. */
