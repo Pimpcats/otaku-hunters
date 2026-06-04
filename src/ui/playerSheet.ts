@@ -1,83 +1,96 @@
-// Real placeholder sprite sheet for the player character.
+// Real placeholder sprite sheets for the player roster.
 //
-// goth_sheet_transparent_clean.png — 1536×1024, laid out 6 cols × 3 rows = 18
-// frames, each cell 256×341 (1536÷6, 1024÷3). The frames are NOT yet grouped by
-// direction (they mix front/back/side poses), so for now we wire the 4-direction
-// system to single STATIC frames (no walk animation) chosen to best match each
-// facing, and bake them into the per-facing texture keys the facing system
-// already expects (`${base}_down|_up|_side`). applyFacing() then picks them up
-// with zero logic change. Real animated sheets can replace these later by
-// registering anims/textures under the same keys — see systems/facing.ts.
+// We have two source sheets (1536×1024 webp), each cut into a grid of frames.
+// The frames aren't grouped by direction, so — as before — we wire the
+// 4-direction system to single STATIC frames chosen to best match each facing,
+// and bake them onto the per-facing texture keys the facing system already
+// expects (`${base}_down|_up|_side`). applyFacing() then picks them up with zero
+// logic change. Left is derived from `side` via flipX.
 //
-// Chosen frames (verified visually against the sheet):
-//   • down (front): frame 0  — she faces the viewer
-//   • up   (back) : frame 3  — back of head + scarf seen from behind
-//   • side (profl): frame 5  — walking profile; left is derived via flipX
+//   roster_sheet.webp — 8 cols × 4 rows, 192×256 cells. Holds several
+//     characters; we use the blonde (green jacket) and brown (green dress) girls.
+//   goth_girl.webp    — 6 cols × 3 rows, 256×341 cells. One clean goth character.
 //
-// If the PNG isn't present yet (art not dropped in), the load simply fails and
-// we keep the procedural chibi placeholder — the game never breaks.
+// Per-character frame picks were verified visually against the sheets. The
+// blonde/brown girls have no side profile on the sheet, so `side` reuses the
+// front frame (they face the viewer while strafing). If a file is missing the
+// load simply fails and that class keeps its procedural chibi — never breaks.
 
 import Phaser from 'phaser';
 import { PLAYER } from '../constants';
 import { CHARACTERS } from '../data/characters';
 import { dirTextureKey, type FacingSet } from '../systems/facing';
 
-export const PLAYER_SHEET = {
-  key: 'goth_sheet',
-  file: 'goth_sheet_transparent_clean.png',
-  frameWidth: 256,
-  frameHeight: 341,
-  /** Best-matching frame index per facing on the current (mixed) sheet. */
-  frames: { down: 0, up: 3, side: 5 } as Record<FacingSet, number>,
-  /**
-   * Whether frame `frames.side` faces RIGHT. The baked `side` texture must face
-   * right because applyFacing() flips it for left. If she moonwalks in-game,
-   * flip this to false (or swap `frames.side` to 4).
-   */
-  sideFacesRight: true,
-  /** In-game display height in px (the source frames are large). */
-  displayHeight: 56,
-  /** Where the gameplay hitbox sits within the frame (fraction of w/h). */
-  bodyCenter: { x: 0.5, y: 0.6 },
-  /** Which roster characters show this art. 'all' = every pick uses it; [] =
-   *  none (every class keeps its distinct procedural chibi). We only have ONE
-   *  real sheet (the goth girl), so applying it to 'all' made the three classes
-   *  look identical — kept empty until there's per-class art. Add ids (e.g.
-   *  ['ronin']) to map this sheet to specific classes. */
-  characters: [] as 'all' | string[],
-};
+interface CharFrames {
+  id: string; // roster character id this art maps to
+  frames: Record<FacingSet, number>; // sheet frame index per facing
+  /** Whether `frames.side` already faces RIGHT (baked `side` must face right, so
+   *  a left-facing source is flipped). */
+  sideFacesRight: boolean;
+}
 
-const REGISTRY_FLAG = 'gothSheetActive';
+interface SheetDef {
+  key: string;
+  file: string;
+  frameWidth: number;
+  frameHeight: number;
+  displayHeight: number; // in-game sprite height in px (source frames are large)
+  bodyCenter: { x: number; y: number }; // hitbox centre within the frame (fraction)
+  targets: CharFrames[];
+}
 
-/** Queue the sheet load. Call from a scene `preload()`. No-op safe if absent. */
-export function loadPlayerSheet(scene: Phaser.Scene): void {
-  const url = `${import.meta.env.BASE_URL}${PLAYER_SHEET.file}`;
-  scene.load.spritesheet(PLAYER_SHEET.key, url, {
-    frameWidth: PLAYER_SHEET.frameWidth,
-    frameHeight: PLAYER_SHEET.frameHeight,
-  });
-  // A missing file must not throw — warn and fall back to procedural art.
-  scene.load.once('loaderror', (file: Phaser.Loader.File) => {
-    if (file.key === PLAYER_SHEET.key) {
-      console.warn(`[OtakuHunter] ${PLAYER_SHEET.file} not found — using procedural player art.`);
+const SHEETS: SheetDef[] = [
+  {
+    key: 'sheet_roster',
+    file: 'roster_sheet.webp',
+    frameWidth: 192,
+    frameHeight: 256,
+    displayHeight: 54,
+    bodyCenter: { x: 0.5, y: 0.62 },
+    targets: [
+      // blonde green-jacket girl
+      { id: 'kohai', frames: { down: 0, up: 10, side: 0 }, sideFacesRight: true },
+      // brown green-dress girl
+      { id: 'sensei', frames: { down: 16, up: 18, side: 16 }, sideFacesRight: true },
+    ],
+  },
+  {
+    key: 'sheet_goth',
+    file: 'goth_girl.webp',
+    frameWidth: 256,
+    frameHeight: 341,
+    displayHeight: 56,
+    bodyCenter: { x: 0.5, y: 0.6 },
+    targets: [
+      { id: 'ronin', frames: { down: 0, up: 3, side: 17 }, sideFacesRight: true },
+    ],
+  },
+];
+
+// registry key → which sheet baked a given character (also the "art active" flag)
+const REG = (id: string) => `sheetActive:${id}`;
+
+/** Queue every sheet load. Call from a scene `preload()`. Missing files are safe. */
+export function loadPlayerSheets(scene: Phaser.Scene): void {
+  for (const sh of SHEETS) {
+    const url = `${import.meta.env.BASE_URL}${sh.file}`;
+    scene.load.spritesheet(sh.key, url, { frameWidth: sh.frameWidth, frameHeight: sh.frameHeight });
+  }
+  scene.load.on('loaderror', (file: Phaser.Loader.File) => {
+    if (SHEETS.some((s) => s.key === file.key)) {
+      console.warn(`[OtakuHunter] ${file.key} not found — procedural art for its classes.`);
     }
   });
 }
 
-function targetIds(): string[] {
-  return PLAYER_SHEET.characters === 'all'
-    ? CHARACTERS.map((c) => c.id)
-    : PLAYER_SHEET.characters;
-}
-
 /** Cut one sheet frame into a standalone texture `key` (optionally h-flipped). */
-function bakeFrame(scene: Phaser.Scene, frameIndex: number, key: string, flip: boolean): void {
-  const { frameWidth: fw, frameHeight: fh } = PLAYER_SHEET;
+function bakeFrame(scene: Phaser.Scene, sh: SheetDef, frameIndex: number, key: string, flip: boolean): void {
+  const { frameWidth: fw, frameHeight: fh } = sh;
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const canvasTex = scene.textures.createCanvas(key, fw, fh);
   if (!canvasTex) return;
   const ctx = canvasTex.getContext();
-  const frame = scene.textures.getFrame(PLAYER_SHEET.key, frameIndex);
+  const frame = scene.textures.getFrame(sh.key, frameIndex);
   ctx.clearRect(0, 0, fw, fh);
   ctx.save();
   if (flip) {
@@ -90,50 +103,50 @@ function bakeFrame(scene: Phaser.Scene, frameIndex: number, key: string, flip: b
 }
 
 /**
- * If the sheet loaded, bake its front/back/side frames over the per-facing
- * texture keys of the targeted characters. Returns true when real art is now
- * active. Call in `create()` AFTER procedural textures are generated.
+ * For each sheet that loaded, bake its front/back/side frames over the
+ * per-facing texture keys of its target characters. Call in `create()` AFTER the
+ * procedural textures are generated.
  */
-export function bakePlayerSheet(scene: Phaser.Scene): boolean {
-  if (!scene.textures.exists(PLAYER_SHEET.key)) return false;
-  const sideFlip = !PLAYER_SHEET.sideFacesRight;
-  for (const id of targetIds()) {
-    const base = CHARACTERS.find((c) => c.id === id)?.texture;
-    if (!base) continue;
-    bakeFrame(scene, PLAYER_SHEET.frames.down, dirTextureKey(base, 'down'), false);
-    bakeFrame(scene, PLAYER_SHEET.frames.up, dirTextureKey(base, 'up'), false);
-    bakeFrame(scene, PLAYER_SHEET.frames.side, dirTextureKey(base, 'side'), sideFlip);
+export function bakePlayerSheets(scene: Phaser.Scene): void {
+  for (const sh of SHEETS) {
+    if (!scene.textures.exists(sh.key)) continue;
+    for (const t of sh.targets) {
+      const base = CHARACTERS.find((c) => c.id === t.id)?.texture;
+      if (!base) continue;
+      bakeFrame(scene, sh, t.frames.down, dirTextureKey(base, 'down'), false);
+      bakeFrame(scene, sh, t.frames.up, dirTextureKey(base, 'up'), false);
+      bakeFrame(scene, sh, t.frames.side, dirTextureKey(base, 'side'), !t.sideFacesRight);
+      scene.game.registry.set(REG(t.id), sh.key);
+    }
   }
-  scene.game.registry.set(REGISTRY_FLAG, true);
-  return true;
 }
 
-/** Display scale that fits a sheet frame to `displayHeight`. */
-export function playerSheetScale(): number {
-  return PLAYER_SHEET.displayHeight / PLAYER_SHEET.frameHeight;
+/** The sheet that baked this character's art, if any is active. */
+function sheetForCharacter(scene: Phaser.Scene, id: string): SheetDef | null {
+  const key = scene.game.registry.get(REG(id));
+  return key ? SHEETS.find((s) => s.key === key) ?? null : null;
 }
 
 /**
- * Size the player sprite + hitbox. When the real sheet is active for this
- * character, scale the large frame down to `displayHeight` and recentre the
- * physics circle on the body; otherwise keep the default circle for the small
- * procedural art. (Arcade bodies are in source px and scale with the sprite —
- * see the boss's setScale/setCircle pairing in RunScene.)
+ * Size the player sprite + hitbox. When real sheet art is active for this
+ * character, scale the large frame down to the sheet's `displayHeight` and
+ * recentre the physics circle on the body; otherwise keep the default circle for
+ * the small procedural art.
  */
 export function configurePlayerSprite(
   scene: Phaser.Scene,
   player: Phaser.Physics.Arcade.Sprite,
   characterId: string,
 ): void {
-  const active = scene.game.registry.get(REGISTRY_FLAG) === true && targetIds().includes(characterId);
-  if (!active) {
+  const sh = sheetForCharacter(scene, characterId);
+  if (!sh) {
     player.setCircle(PLAYER.radius, 0, 0);
     return;
   }
-  const scale = playerSheetScale();
+  const scale = sh.displayHeight / sh.frameHeight;
   player.setScale(scale);
   const srcR = PLAYER.radius / scale;
-  const cx = PLAYER_SHEET.frameWidth * PLAYER_SHEET.bodyCenter.x;
-  const cy = PLAYER_SHEET.frameHeight * PLAYER_SHEET.bodyCenter.y;
+  const cx = sh.frameWidth * sh.bodyCenter.x;
+  const cy = sh.frameHeight * sh.bodyCenter.y;
   player.setCircle(srcR, cx - srcR, cy - srcR);
 }
