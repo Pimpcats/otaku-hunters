@@ -1,97 +1,141 @@
-// Auto-attack (brief §2). No aiming, no fire button — the weapon fires on a
-// timer toward the nearest enemy. Level-up rewards scale it (brief §4.6).
+// Auto-attack manager (brief §2). No aiming, no fire button. Each owned weapon
+// fires on its own cooldown; all numbers come from balance.ts scaled by the
+// player's derived stats (Might, Haste, Amount, Area, ProjSpeed).
 
 import Phaser from 'phaser';
-import { TEX } from '../constants';
+import { TEX, COLORS } from '../constants';
+import { WEAPONS } from '../data/balance';
+import type { PlayerLoadout } from './loadout';
 
-export class Weapon {
+type Sprite = Phaser.Physics.Arcade.Sprite;
+type DealDamage = (enemy: Sprite, amount: number) => void;
+const AURA_BASE_RADIUS = 66;
+
+export class WeaponManager {
   scene: Phaser.Scene;
+  loadout: PlayerLoadout;
   bullets: Phaser.Physics.Arcade.Group;
 
-  level = 1;
-  damage = 1;
-  fireRate = 620; // ms between shots
-  projectiles = 1;
-  bulletSpeed = 420;
-  range = 320;
+  private lastFire: Record<string, number> = {};
+  private auraRing?: Phaser.GameObjects.Arc;
 
-  private lastFire = 0;
-  private readonly minFireRate = 180;
-
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, loadout: PlayerLoadout) {
     this.scene = scene;
-    this.bullets = scene.physics.add.group({
-      defaultKey: TEX.bullet,
-      maxSize: 200,
-    });
+    this.loadout = loadout;
+    this.bullets = scene.physics.add.group({ defaultKey: TEX.bullet, maxSize: 400 });
   }
 
-  /** Apply N weapon levels (the level-up reward). */
-  applyLevels(n: number): void {
-    for (let i = 0; i < n; i++) {
-      this.level += 1;
-      this.damage += 1;
-      this.fireRate = Math.max(this.minFireRate, this.fireRate * 0.93);
-      if (this.level % 3 === 0) this.projectiles += 1;
-      if (this.level % 4 === 0) this.bulletSpeed += 30;
+  update(time: number, px: number, py: number, enemies: Phaser.Physics.Arcade.Group, deal: DealDamage) {
+    const s = this.loadout.stats();
+    for (const id of this.loadout.ownedWeaponIds()) {
+      const def = WEAPONS[id];
+      if (!def) continue;
+      const lvl = this.loadout.weaponLevel(id);
+      const base = def.level(lvl);
+      const cd = base.cooldown * s.haste;
+      if (time - (this.lastFire[id] ?? -99999) < cd) continue;
+      this.lastFire[id] = time;
+      if (def.kind === 'projectile') this.fireProjectile(px, py, base, s, enemies);
+      else this.pulseAura(px, py, base, s, enemies, deal);
     }
   }
 
-  update(
-    time: number,
+  private fireProjectile(
     px: number,
     py: number,
+    base: { damage: number; amount: number; speed: number; pierce: number },
+    s: { might: number; amount: number; area: number; projSpeed: number },
     enemies: Phaser.Physics.Arcade.Group,
-  ): void {
-    if (time - this.lastFire < this.fireRate) return;
-
-    const target = this.nearestEnemy(px, py, enemies);
+  ) {
+    const target = this.nearest(px, py, enemies, 360);
     if (!target) return;
-    this.lastFire = time;
-
-    const baseAngle = Math.atan2(target.y - py, target.x - px);
-    const spread = Phaser.Math.DegToRad(12);
-    const start = -((this.projectiles - 1) / 2) * spread;
-    for (let i = 0; i < this.projectiles; i++) {
-      this.fireOne(px, py, baseAngle + start + i * spread);
+    const angle = Math.atan2(target.y - py, target.x - px);
+    const count = base.amount + s.amount;
+    const spread = Phaser.Math.DegToRad(11);
+    const start = -((count - 1) / 2) * spread;
+    for (let i = 0; i < count; i++) {
+      this.spawnBullet(px, py, angle + start + i * spread, base, s);
     }
   }
 
-  private fireOne(px: number, py: number, angle: number): void {
-    const b = this.bullets.get(px, py, TEX.bullet) as Phaser.Physics.Arcade.Sprite | null;
+  private spawnBullet(
+    px: number,
+    py: number,
+    angle: number,
+    base: { damage: number; speed: number; pierce: number },
+    s: { might: number; area: number; projSpeed: number },
+  ) {
+    const b = this.bullets.get(px, py, TEX.bullet) as Sprite | null;
     if (!b) return;
-    b.enableBody(true, px, py, true, true); // re-enables recycled bullet bodies
-    b.setData('damage', this.damage);
-    const body = b.body as Phaser.Physics.Arcade.Body;
-    body.setVelocity(Math.cos(angle) * this.bulletSpeed, Math.sin(angle) * this.bulletSpeed);
+    b.enableBody(true, px, py, true, true);
     b.setBlendMode(Phaser.BlendModes.ADD);
-
-    // Despawn after it has travelled roughly `range`.
-    this.scene.time.delayedCall((this.range / this.bulletSpeed) * 1000, () => {
+    b.setScale(s.area);
+    b.setData('damage', base.damage * s.might);
+    b.setData('pierce', base.pierce);
+    b.setData('hits', new Set<Phaser.GameObjects.GameObject>());
+    const speed = base.speed * s.projSpeed;
+    (b.body as Phaser.Physics.Arcade.Body).setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    // lifespan ~ travel range
+    this.scene.time.delayedCall(1100, () => {
       if (b.active) this.killBullet(b);
     });
   }
 
-  killBullet(b: Phaser.Physics.Arcade.Sprite): void {
-    b.disableBody(true, true); // stops + disables so it can't keep colliding
-    this.bullets.killAndHide(b);
+  /** Called by RunScene's bullet↔enemy overlap. Returns true if it hit. */
+  onBulletOverlap(b: Sprite, e: Sprite, deal: DealDamage): void {
+    if (!b.active || !e.active) return;
+    const hits = b.getData('hits') as Set<Phaser.GameObjects.GameObject>;
+    if (hits.has(e)) return;
+    hits.add(e);
+    deal(e, b.getData('damage') as number);
+    const pierce = ((b.getData('pierce') as number) ?? 1) - 1;
+    b.setData('pierce', pierce);
+    if (pierce <= 0) this.killBullet(b);
   }
 
-  private nearestEnemy(
+  private pulseAura(
     px: number,
     py: number,
+    base: { damage: number },
+    s: { might: number; area: number },
     enemies: Phaser.Physics.Arcade.Group,
-  ): Phaser.Physics.Arcade.Sprite | null {
-    let best: Phaser.Physics.Arcade.Sprite | null = null;
-    let bestDist = this.range * this.range;
+    deal: DealDamage,
+  ) {
+    const radius = AURA_BASE_RADIUS * s.area;
+    const dmg = base.damage * s.might;
+    const r2 = radius * radius;
     for (const obj of enemies.getChildren()) {
-      const e = obj as Phaser.Physics.Arcade.Sprite;
+      const e = obj as Sprite;
       if (!e.active) continue;
       const dx = e.x - px;
       const dy = e.y - py;
-      const d = dx * dx + dy * dy;
-      if (d < bestDist) {
-        bestDist = d;
+      if (dx * dx + dy * dy <= r2) deal(e, dmg);
+    }
+    // visual flash
+    if (!this.auraRing) {
+      this.auraRing = this.scene.add
+        .circle(px, py, radius, COLORS.player, 0.18)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(45);
+    }
+    this.auraRing.setPosition(px, py).setRadius(radius).setAlpha(0.32).setVisible(true);
+    this.scene.tweens.add({ targets: this.auraRing, alpha: 0, duration: 260 });
+  }
+
+  killBullet(b: Sprite): void {
+    b.disableBody(true, true);
+    this.bullets.killAndHide(b);
+  }
+
+  private nearest(px: number, py: number, enemies: Phaser.Physics.Arcade.Group, range: number): Sprite | null {
+    let best: Sprite | null = null;
+    let bestD = range * range;
+    for (const obj of enemies.getChildren()) {
+      const e = obj as Sprite;
+      if (!e.active) continue;
+      const d = (e.x - px) ** 2 + (e.y - py) ** 2;
+      if (d < bestD) {
+        bestD = d;
         best = e;
       }
     }

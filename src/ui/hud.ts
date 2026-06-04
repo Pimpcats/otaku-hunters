@@ -9,6 +9,9 @@ export class Hud {
   private levelText: Phaser.GameObjects.Text;
   private timerText: Phaser.GameObjects.Text;
   private wordsText: Phaser.GameObjects.Text;
+  private bossBarBack: Phaser.GameObjects.Rectangle;
+  private bossBar: Phaser.GameObjects.Rectangle;
+  private bossText: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene) {
     const W = GAME_WIDTH;
@@ -53,6 +56,27 @@ export class Hud {
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(901);
+
+    // Boss bar (hidden until the boss appears) across the top, under the XP bar.
+    const bw = W - 160;
+    this.bossText = scene.add
+      .text(W / 2, 44, '', { fontFamily: 'system-ui', fontSize: '15px', color: '#ff7ae0', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(903)
+      .setVisible(false);
+    this.bossBarBack = scene.add
+      .rectangle(80, 62, bw, 12, COLORS.hpBack)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(902)
+      .setVisible(false);
+    this.bossBar = scene.add
+      .rectangle(80, 62, bw, 12, COLORS.word)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(903)
+      .setVisible(false);
   }
 
   update(state: {
@@ -63,6 +87,7 @@ export class Hud {
     maxHp: number;
     elapsed: number;
     words: number;
+    boss: { hp: number; maxHp: number; name: string } | null;
   }): void {
     this.xpBar.width = GAME_WIDTH * Phaser.Math.Clamp(state.xp / state.xpToNext, 0, 1);
     this.hpBar.width = 220 * Phaser.Math.Clamp(state.hp / state.maxHp, 0, 1);
@@ -71,5 +96,14 @@ export class Hud {
     const m = Math.floor(state.elapsed / 60);
     const s = Math.floor(state.elapsed % 60);
     this.timerText.setText(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+
+    const show = state.boss !== null;
+    this.bossBar.setVisible(show);
+    this.bossBarBack.setVisible(show);
+    this.bossText.setVisible(show);
+    if (state.boss) {
+      this.bossText.setText(state.boss.name);
+      this.bossBar.width = (GAME_WIDTH - 160) * Phaser.Math.Clamp(state.boss.hp / state.boss.maxHp, 0, 1);
+    }
   }
 }

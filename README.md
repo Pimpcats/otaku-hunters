@@ -54,12 +54,25 @@ eligibility flag (`src/data/contentIndex.ts`).
 ```
 src/
   data/        lessons.js (source) · contentIndex · stages · particles-meta · types
-  scenes/      Boot · Meta · Run (the VS loop) · LevelUp (the minigame overlay)
-  systems/     input · weapons · spawner · puzzle (selection + grading) · srs
-  entities/    enemies/archetypes (RushFan, MerchMule)
+               balance.ts (all difficulty/power numbers — see BALANCE.md)
+  scenes/      Boot · Meta · Run (the VS loop) · LevelUp (puzzle + 1-of-3 upgrade)
+  systems/     input · weapons (WeaponManager) · spawner · puzzle · srs
+               loadout.ts (upgrade pool + derived player stats)
+  entities/    enemies/archetypes (RushFan, MerchMule, UltimateCollector boss)
   ui/          textures (placeholder art) · hud
   audio/       tts (Web Speech fallback)
+tools/         balance-sim.ts (offline difficulty simulator, not shipped)
 ```
+
+## Difficulty & upgrades
+
+Vampire-Survivors-style balance, all tunable in **`src/data/balance.ts`** and
+verified with a simulator (`tools/balance-sim.ts`). Each level-up you **pick 1 of
+3 upgrades** (weapons + passives that stack additively within a stat,
+multiplicatively across), and your **minigame grade scales the stacks**
+(got_it ×3 / kinda ×2 / nope ×1 + heal). Enemies scale on a time curve — one-shots
+at 0:00, a packed screen by 20:00, when **The Ultimate Collector** boss arrives.
+Full write-up in [`BALANCE.md`](./BALANCE.md).
 
 Art and audio are placeholders (procedural shapes + device TTS) — real assets
 drop in by replacing texture keys and wiring audio clips, no gameplay changes.
