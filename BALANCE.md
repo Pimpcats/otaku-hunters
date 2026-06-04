@@ -67,11 +67,12 @@ with the Japanese only ever helps.
 
 ## Enemy time curve (the difficulty ramp)
 
-Enemies have small base stats × **time multipliers** (t seconds, m = t/60):
+Enemies have small base stats × **time multipliers** (t seconds, m = t/60).
+**Front-loaded** (2026-06 pass) so pressure arrives early, not just at the boss:
 
 ```
-HP      ×= 1 + 0.18·m + 0.035·m²     // m0=1, m10≈6.3, m20≈18.6
-Contact ×= 1 + 0.05·m
+HP      ×= 1 + 0.34·m + 0.055·m²    // m0=1, m5≈4.1, m10≈9.9, m20≈29.8
+Contact ×= 1 + 0.06·m
 Speed   ×= 1 + 0.015·m
 XP      ×= 1 + 0.12·m                // gems worth more late, leveling keeps pace
 ```
@@ -79,27 +80,26 @@ XP      ×= 1 + 0.12·m                // gems worth more late, leveling keeps p
 Base: RushFan {hp 6, contact 8, speed 70, xp 1}; MerchMule {hp 14, contact 6,
 speed 56, xp 3, drops a word-token}.
 
-Spawning ramps too: interval `900ms → 200ms` (floors at 15:00), burst `1 → 5`,
-on-screen cap `40 → 300`, Merch-Mule share `12% → 32%`.
+Spawning ramps faster too: interval `800ms → 200ms` (floors at **10:00**), burst
+`1 → 7` (every 3 min), on-screen cap `60 → 320` (by 16:00), Merch-Mule share
+`12% → 32%`.
 
 ## The curve (from `tools/balance-sim.ts`)
 
 An "average" build (grade mix 35/45/20 → ~2.15 stacks per level-up) vs. the
-enemy curve. **Target: "beatable but tense."**
+enemy curve. After the VS-passive port + front-loaded curve:
 
 | Time | Fodder HP | Hits to kill | Spawn/s | Clear ratio | Feel |
 |------|-----------|--------------|---------|-------------|------|
-| 0:00 | 7 | <1 | 1 | — | one-shots ✓ |
-| 1:00 | 9 | <1 | 1 | 10.6 | powerful |
-| 5:00 | 20 | 1 | 3 | 9.2 | comfortable |
-| 10:00 | 49 | 1–2 | 7 | 6.9 | building |
-| 15:00 | 94 | 2 | 20 | 2.7 | heating up |
-| 19:00 | 145 | 3 | 20 | 1.7 | hectic |
-| 20:00 | 159 | 3 | 25 | **1.26** | swarmed → boss |
+| 0:00 | 7 | <1 | 1 | 2.5 | one-shots ✓ |
+| 2:00 | 14 | <1 | 1 | 11.8 | comfortable |
+| 5:00 | 30 | <1 | 4 | 8.9 | building |
+| 10:00 | 77 | 1.3 | 20 | **1.55** | tense |
+| 15:00 | 151 | 2.5 | 30 | 0.53 | OVERWHELMED |
+| 19:00 | 232 | 3.9 | 35 | 0.29 | swarmed |
 
 - *Clear ratio* = your clear-DPS ÷ incoming-HP-per-second. >1 = out-clearing
-  spawns; ~1.2 at 20:00 with 25 enemies/sec on screen is genuinely tense (you
-  can't be everywhere).
+  spawns. The squeeze now lands ~5 min earlier than the old curve.
 - A weaker player (more wrong answers → fewer stacks, slower build) hits the
   wall earlier; a strong player ramps faster — **skill and Japanese both matter.**
 
@@ -107,14 +107,22 @@ enemy curve. **Target: "beatable but tense."**
 
 `HP 75,000`, contact 28, slow relentless beeline. Defeating it = **Stage Clear**.
 
-## ⚠ Rebalancing debt from the VS port
+## ⚠ Rebalancing debt — the player power ceiling
 
-Copying VS's (much tamer) passive numbers onto our raw-HP combat **nerfed the
-player's late game** — the enemy curve and boss HP were tuned for the old, more
-generous passives. Current sim reads `OVERWHELMED` at 19–20:00 and boss TTK ≈
-**100s** (target ~30–45s). This is expected "copy now, adjust as we go" debt; the
-next combat-tuning pass should soften `hpMult`/spawn density and/or lower boss HP
-to re-hit the "beatable but tense" band. Re-run the sim after any change.
+VS's tame passive caps mean clear-DPS **hits a hard ceiling (~2,387) and stops
+growing** once the build maxes (which now happens early). Combined with the
+front-loaded curve, an average build is `OVERWHELMED` by ~15:00 and **does not
+reach the 20:00 boss**; boss single-target TTK is also ≈100s. Skill doesn't fix
+this — a perfect-answer player just reaches the same ceiling sooner.
+
+The real fix is **lifting the player ceiling**, not softening enemies:
+- scale weapon base damage harder per level, and/or
+- wire the **VS evolutions** (maxed weapon + required passive → evolved form = a
+  big DPS jump), and/or
+- wire **Curse** as a player-chosen risk/reward difficulty lever.
+
+Until then the run is intentionally tuned "hard and short" for feel-testing.
+Re-run the sim after any change.
 
 ## Re-running the simulator
 

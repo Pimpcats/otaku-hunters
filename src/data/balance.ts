@@ -193,12 +193,14 @@ export const ENEMY_BASE: Record<string, EnemyBase> = {
   MerchMule: { hp: 14, contact: 6, speed: 56, xp: 3 },
 };
 
-// Time multipliers (t in seconds, m in minutes).
+// Time multipliers (t in seconds, m in minutes). Front-loaded so the pressure
+// arrives EARLY (tense by ~8–10 min) instead of only at the boss — the late
+// game stays an overwhelm climax.
 export const hpMult = (t: number) => {
   const m = t / 60;
-  return 1 + 0.18 * m + 0.045 * m * m; // m0=1, m10≈7.3, m20≈22.6
+  return 1 + 0.34 * m + 0.055 * m * m; // m0=1, m5≈4.1, m10≈9.9, m20≈29.8
 };
-export const contactMult = (t: number) => 1 + 0.05 * (t / 60); // gentle
+export const contactMult = (t: number) => 1 + 0.06 * (t / 60); // gentle
 export const speedMult = (t: number) => 1 + 0.015 * (t / 60);
 export const xpMult = (t: number) => 1 + 0.12 * (t / 60); // gems worth more late
 
@@ -215,14 +217,14 @@ export function enemyStatsAt(key: string, t: number): EnemyBase {
 
 // ── Spawning over time ───────────────────────────────────────────────────────
 export const spawnInterval = (t: number) => {
-  const m = Math.min(t / 60, 15);
-  return lerp(900, 200, m / 15); // ms; floors at 15:00
+  const m = Math.min(t / 60, 10);
+  return lerp(800, 200, m / 10); // ms; floors at 10:00 (was 15:00)
 };
 export const maxAlive = (t: number) => {
-  const m = Math.min(t / 60, 20);
-  return Math.round(lerp(40, 300, m / 20));
+  const m = Math.min(t / 60, 16);
+  return Math.round(lerp(60, 320, m / 16)); // starts denser, caps by 16:00
 };
-export const spawnBurst = (t: number) => 1 + Math.floor(Math.min(t / 60, 20) / 5); // 1→5
+export const spawnBurst = (t: number) => 1 + Math.floor(Math.min(t / 60, 20) / 3); // 1→7 (every 3 min)
 /** Mule share of spawns (loot mobs) rises a little over time. */
 export const muleShare = (t: number) => clamp(0.12 + 0.01 * (t / 60), 0.12, 0.32);
 
