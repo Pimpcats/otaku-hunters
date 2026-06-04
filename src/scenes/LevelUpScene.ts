@@ -20,6 +20,7 @@ interface LevelUpData {
   collectedSet: Set<string>;
   level: number;
   loadout: PlayerLoadout;
+  recent: Set<string>;
   onComplete: (result: LevelUpResult) => void;
 }
 
@@ -58,7 +59,11 @@ export class LevelUpScene extends Phaser.Scene {
     this.add.text(cx, 36, 'LEVEL UP!', { fontFamily: 'system-ui', fontSize: '30px', color: '#7CFF9E', fontStyle: 'bold' }).setOrigin(0.5);
 
     const maxDifficulty = 4 + this.payload.level;
-    const sentence = selectSentence(this.payload.stage, this.payload.collectedSet, { maxDifficulty, distractors: 2 });
+    const sentence = selectSentence(this.payload.stage, this.payload.collectedSet, {
+      maxDifficulty,
+      distractors: 2,
+      recent: this.payload.recent,
+    });
     this.puzzle = sentence ? buildTierA(sentence, 2) : null;
 
     if (!this.puzzle) {
@@ -263,8 +268,9 @@ export class LevelUpScene extends Phaser.Scene {
     }
 
     const onComplete = this.payload.onComplete;
+    const sid = this.puzzle?.sentence.sid;
     this.scene.stop();
     this.scene.resume('Run');
-    onComplete({ grade, heal });
+    onComplete({ grade, heal, sid });
   }
 }

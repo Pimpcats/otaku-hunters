@@ -7,6 +7,7 @@
 import type { IndexedSentence, Word } from '../data/types';
 import type { ResolvedStage } from '../data/stages';
 import { buildParticleOptions, isRoleMarker, isSentenceFinal } from '../data/particles-meta';
+import { hauntWeight } from './srs';
 
 export type Grade = 'got_it' | 'kinda' | 'nope';
 
@@ -35,17 +36,34 @@ interface SelectOpts {
   maxDifficulty: number;
   /** How many wrong particle options to offer (tier scaling). */
   distractors: number;
+  /** Recently-served sids to avoid repeating (variety). */
+  recent?: Set<string>;
 }
 
 function countCollected(s: IndexedSentence, pool: CollectedPool): number {
   return s.roleWords.reduce((n, w) => n + (pool.has(w.jp) ? 1 : 0), 0);
 }
 
+/** Weighted-random pick: favours sentences using more collected words and
+ *  ones the SRS wants to resurface ("haunting"), so it's varied but not random
+ *  noise. Returns null only for an empty list. */
+function weightedPick(cands: IndexedSentence[], pool: CollectedPool): IndexedSentence | null {
+  if (cands.length === 0) return null;
+  const weights = cands.map((s) => (countCollected(s, pool) + 1) * hauntWeight(s.sid));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < cands.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return cands[i];
+  }
+  return cands[cands.length - 1];
+}
+
 /**
- * Sentence selection with run-only pool + fallbacks (brief §4.5).
- * Prefers sentences whose role words the player has actually collected, and
- * that match the current difficulty budget. Never returns null for a stage
- * that has any eligible sentence (cold-start grace).
+ * Sentence selection with run-only pool + fallbacks (brief §4.5), now
+ * randomised for variety. Prefers sentences whose role words the player has
+ * collected and that fit the difficulty budget, avoids recent repeats, and
+ * never returns null while the stage has any eligible sentence (cold-start).
  */
 export function selectSentence(
   stage: ResolvedStage,
@@ -61,24 +79,20 @@ export function selectSentence(
   const withinTier = eligible.filter((s) => s.difficulty <= opts.maxDifficulty);
   const tierPool = withinTier.length > 0 ? withinTier : eligible;
 
-  // 1) full match — every role word collected. Prefer most collected words.
+  // Choose the candidate set by how much the player has collected:
+  //  1) full match (every role word collected)  2) partial  3) cold-start (all).
   const full = tierPool.filter((s) => s.roleWords.every((w) => pool.has(w.jp)));
-  if (full.length > 0) {
-    return full.sort(
-      (a, b) => countCollected(b, pool) - countCollected(a, pool) || a.difficulty - b.difficulty,
-    )[0];
-  }
-
-  // 2) relax — at least one collected role word.
   const partial = tierPool.filter((s) => s.roleWords.some((w) => pool.has(w.jp)));
-  if (partial.length > 0) {
-    return partial.sort(
-      (a, b) => countCollected(b, pool) - countCollected(a, pool) || a.difficulty - b.difficulty,
-    )[0];
+  let candidates = full.length > 0 ? full : partial.length > 0 ? partial : tierPool;
+
+  // Avoid repeating the last few sentences, as long as something's left.
+  const recent = opts.recent;
+  if (recent && recent.size > 0) {
+    const fresh = candidates.filter((s) => !recent.has(s.sid));
+    if (fresh.length > 0) candidates = fresh;
   }
 
-  // 3) cold-start grace — simplest eligible sentence regardless of collection.
-  return [...tierPool].sort((a, b) => a.difficulty - b.difficulty)[0];
+  return weightedPick(candidates, pool);
 }
 
 /**

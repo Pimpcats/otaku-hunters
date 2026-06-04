@@ -27,6 +27,7 @@ type Sprite = Phaser.Physics.Arcade.Sprite;
 export interface LevelUpResult {
   grade: Grade;
   heal: number;
+  sid?: string; // the sentence that was served (for variety tracking)
 }
 
 export class RunScene extends Phaser.Scene {
@@ -58,6 +59,7 @@ export class RunScene extends Phaser.Scene {
 
   private collectedWords = new Map<string, Word>();
   private collectedSet = new Set<string>();
+  private recentSids: string[] = []; // last few puzzle sentences, for variety
 
   constructor() {
     super('Run');
@@ -78,6 +80,7 @@ export class RunScene extends Phaser.Scene {
     this.boss = null;
     this.collectedWords = new Map();
     this.collectedSet = new Set();
+    this.recentSids = [];
   }
 
   create(data: { stageId?: string }) {
@@ -357,6 +360,7 @@ export class RunScene extends Phaser.Scene {
       collectedSet: this.collectedSet,
       level: this.level,
       loadout: this.loadout,
+      recent: new Set(this.recentSids),
       onComplete: (result: LevelUpResult) => this.onLevelUpDone(result),
     });
     this.scene.pause();
@@ -365,6 +369,10 @@ export class RunScene extends Phaser.Scene {
   private onLevelUpDone(result: LevelUpResult) {
     this.maxHp = this.loadout.stats().maxHp;
     if (result.heal > 0) this.hp = Math.min(this.maxHp, this.hp + result.heal);
+    if (result.sid) {
+      this.recentSids.push(result.sid);
+      if (this.recentSids.length > 10) this.recentSids.shift(); // remember the last 10
+    }
     this.input.enabled = true;
     this.leveling = false;
     this.checkLevelUp();
