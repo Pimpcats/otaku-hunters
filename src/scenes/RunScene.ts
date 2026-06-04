@@ -28,6 +28,7 @@ export interface LevelUpResult {
   grade: Grade;
   heal: number;
   sid?: string; // the sentence that was served (for variety tracking)
+  answerParticle?: string; // particle drills only (for skew tracking)
 }
 
 export class RunScene extends Phaser.Scene {
@@ -60,6 +61,7 @@ export class RunScene extends Phaser.Scene {
   private collectedWords = new Map<string, Word>();
   private collectedSet = new Set<string>();
   private recentSids: string[] = []; // last few puzzle sentences, for variety
+  private recentParticles: string[] = []; // last few answer particles, for skew
 
   constructor() {
     super('Run');
@@ -81,6 +83,7 @@ export class RunScene extends Phaser.Scene {
     this.collectedWords = new Map();
     this.collectedSet = new Set();
     this.recentSids = [];
+    this.recentParticles = [];
   }
 
   create(data: { stageId?: string }) {
@@ -361,6 +364,7 @@ export class RunScene extends Phaser.Scene {
       level: this.level,
       loadout: this.loadout,
       recent: new Set(this.recentSids),
+      recentParticles: [...this.recentParticles],
       onComplete: (result: LevelUpResult) => this.onLevelUpDone(result),
     });
     this.scene.pause();
@@ -372,6 +376,10 @@ export class RunScene extends Phaser.Scene {
     if (result.sid) {
       this.recentSids.push(result.sid);
       if (this.recentSids.length > 10) this.recentSids.shift(); // remember the last 10
+    }
+    if (result.answerParticle) {
+      this.recentParticles.push(result.answerParticle);
+      if (this.recentParticles.length > 5) this.recentParticles.shift();
     }
     this.input.enabled = true;
     this.leveling = false;

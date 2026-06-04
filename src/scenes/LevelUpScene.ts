@@ -3,10 +3,12 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../constants';
 import type { ResolvedStage } from '../data/stages';
 import type { Word } from '../data/types';
 import {
-  selectSentence,
-  buildTierA,
+  pickPuzzle,
   gradeFromAttempts,
+  gradeFromBuild,
   type Puzzle,
+  type BuildPuzzle,
+  type AnyPuzzle,
 } from '../systems/puzzle';
 import { GRADE_STACKS, NOPE_HEAL, type Grade } from '../data/balance';
 import { PlayerLoadout, type UpgradeDef } from '../systems/loadout';
@@ -21,7 +23,20 @@ interface LevelUpData {
   level: number;
   loadout: PlayerLoadout;
   recent: Set<string>;
+  recentParticles: string[];
   onComplete: (result: LevelUpResult) => void;
+}
+
+interface TrayChip {
+  word: Word;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Rectangle;
+  used: boolean;
+}
+interface BuildSlot {
+  x: number;
+  width: number;
+  rect: Phaser.GameObjects.Rectangle;
 }
 
 const SOLVE_TIME = 15000; // ms; no answer → "nope" (still rewards)
@@ -34,15 +49,24 @@ const HEAL_CARD_AMOUNT = 40;
 // upgrade (×1) and heals (guardrail §8.2: never a penalty).
 export class LevelUpScene extends Phaser.Scene {
   private payload!: LevelUpData;
-  private puzzle: Puzzle | null = null;
+  private puzzle: AnyPuzzle | null = null;
 
   private firstTry = true;
   private solved = false;
   private phase: 'puzzle' | 'upgrade' | 'done' = 'puzzle';
+  private answerParticle?: string;
 
+  // particle-mode
   private socketBox!: Phaser.GameObjects.Rectangle;
   private socketText!: Phaser.GameObjects.Text;
   private timerEvent?: Phaser.Tweens.Tween;
+
+  // build-mode
+  private buildOrder: Word[] = [];
+  private buildPlaced = 0;
+  private buildMistakes = 0;
+  private buildSlots: BuildSlot[] = [];
+  private trayChips: TrayChip[] = [];
 
   constructor() {
     super('LevelUp');
@@ -53,18 +77,23 @@ export class LevelUpScene extends Phaser.Scene {
     this.firstTry = true;
     this.solved = false;
     this.phase = 'puzzle';
+    this.answerParticle = undefined;
+    this.buildPlaced = 0;
+    this.buildMistakes = 0;
+    this.buildSlots = [];
+    this.trayChips = [];
 
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.62).setOrigin(0, 0).setInteractive();
     const cx = GAME_WIDTH / 2;
     this.add.text(cx, 36, 'LEVEL UP!', { fontFamily: 'system-ui', fontSize: '30px', color: '#7CFF9E', fontStyle: 'bold' }).setOrigin(0.5);
 
-    const maxDifficulty = 4 + this.payload.level;
-    const sentence = selectSentence(this.payload.stage, this.payload.collectedSet, {
-      maxDifficulty,
+    this.puzzle = pickPuzzle(this.payload.stage, this.payload.collectedSet, {
+      level: this.payload.level,
+      maxDifficulty: 4 + this.payload.level,
       distractors: 2,
       recent: this.payload.recent,
+      recentParticles: this.payload.recentParticles,
     });
-    this.puzzle = sentence ? buildTierA(sentence, 2) : null;
 
     if (!this.puzzle) {
       // No eligible content yet — skip straight to the upgrade pick (§8.7).
@@ -73,20 +102,25 @@ export class LevelUpScene extends Phaser.Scene {
       return;
     }
 
-    this.renderPrompt(cx);
-    this.renderSentence(cx);
-    this.renderOptions(cx);
+    if (this.puzzle.kind === 'particle') {
+      this.renderPrompt(cx, 'Build it in Japanese — pick the missing particle');
+      this.renderSentence(cx);
+      this.renderOptions(cx);
+    } else {
+      this.renderPrompt(cx, 'Put the words in the right order');
+      this.renderBuild(cx);
+    }
     this.renderTimer();
   }
 
   // ── puzzle phase ─────────────────────────────────────────────────────────
-  private renderPrompt(cx: number) {
-    this.add.text(cx, 84, 'Build it in Japanese — pick the missing particle', { fontFamily: 'system-ui', fontSize: '15px', color: '#8890b5' }).setOrigin(0.5);
+  private renderPrompt(cx: number, subtitle: string) {
+    this.add.text(cx, 84, subtitle, { fontFamily: 'system-ui', fontSize: '15px', color: '#8890b5' }).setOrigin(0.5);
     this.add.text(cx, 124, `“${this.puzzle!.promptEn}”`, { fontFamily: 'system-ui', fontSize: '24px', color: '#ffffff', fontStyle: 'italic', wordWrap: { width: GAME_WIDTH - 120 }, align: 'center' }).setOrigin(0.5);
   }
 
   private renderSentence(cx: number) {
-    const p = this.puzzle!;
+    const p = this.puzzle as Puzzle;
     const y = 210;
     const gap = 10;
     const padX = 14;
@@ -132,7 +166,7 @@ export class LevelUpScene extends Phaser.Scene {
   }
 
   private renderOptions(cx: number) {
-    const p = this.puzzle!;
+    const p = this.puzzle as Puzzle;
     const y = 312;
     const btnW = 92;
     const btnH = 56;
@@ -156,6 +190,113 @@ export class LevelUpScene extends Phaser.Scene {
     });
   }
 
+  // ── build-the-sentence (word order) ────────────────────────────────────────
+  private renderBuild(cx: number) {
+    const p = this.puzzle as BuildPuzzle;
+    this.buildOrder = p.order;
+
+    const n = p.order.length;
+    const slotGap = 8;
+    const maxRowW = GAME_WIDTH - 80;
+    const slotW = Math.min(96, Math.floor((maxRowW - slotGap * (n - 1)) / n));
+    const slotH = 50;
+    const rowY = 194;
+    const totalW = n * slotW + slotGap * (n - 1);
+    let sx = cx - totalW / 2 + slotW / 2;
+    for (let i = 0; i < n; i++) {
+      const rect = this.add.rectangle(sx, rowY, slotW, slotH, COLORS.socket, 0.45).setStrokeStyle(2, 0x3a3f70);
+      this.buildSlots.push({ x: sx, width: slotW, rect });
+      sx += slotW + slotGap;
+    }
+
+    this.add.text(cx, rowY + 44, '▼ tap the words in order ▼', { fontFamily: 'system-ui', fontSize: '13px', color: '#8890b5' }).setOrigin(0.5);
+    this.renderTray(cx, p.scrambled, slotW);
+
+    const skip = this.add.text(cx, 408, 'skip ▸', { fontFamily: 'system-ui', fontSize: '16px', color: '#8890b5' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    skip.on('pointerup', () => {
+      if (this.phase === 'puzzle') this.toUpgrades('nope');
+    });
+  }
+
+  private renderTray(cx: number, words: Word[], minW: number) {
+    const padX = 14;
+    const chipH = 48;
+    const gap = 10;
+    const rowMaxW = GAME_WIDTH - 80;
+    const measure = (s: string) => {
+      const t = this.add.text(0, -999, s, { fontFamily: 'system-ui', fontSize: '26px' });
+      const w = t.width;
+      t.destroy();
+      return w;
+    };
+    const items = words.map((w) => ({ w, width: Math.max(minW, measure(w.jp) + padX * 2) }));
+
+    // wrap chips into centred rows
+    const rows: { items: typeof items; width: number }[] = [];
+    let row: typeof items = [];
+    let rowW = 0;
+    for (const it of items) {
+      const add = it.width + (row.length ? gap : 0);
+      if (row.length && rowW + add > rowMaxW) {
+        rows.push({ items: row, width: rowW });
+        row = [];
+        rowW = 0;
+      }
+      row.push(it);
+      rowW += it.width + (row.length > 1 ? gap : 0);
+    }
+    if (row.length) rows.push({ items: row, width: rowW });
+
+    let y = 300;
+    for (const r of rows) {
+      let x = cx - r.width / 2;
+      for (const it of r.items) {
+        const container = this.add.container(x + it.width / 2, y);
+        const bg = this.add.rectangle(0, 0, it.width, chipH, COLORS.chip).setStrokeStyle(2, 0x5560a0).setInteractive({ useHandCursor: true });
+        const txt = this.add.text(0, 0, it.w.jp, { fontFamily: 'system-ui', fontSize: '24px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+        container.add([bg, txt]);
+        const chip: TrayChip = { word: it.w, container, bg, used: false };
+        bg.on('pointerup', () => this.onTrayTap(chip));
+        this.trayChips.push(chip);
+        x += it.width + gap;
+      }
+      y += chipH + 12;
+    }
+  }
+
+  private onTrayTap(chip: TrayChip) {
+    if (this.phase !== 'puzzle' || chip.used || !this.puzzle) return;
+    const expected = this.buildOrder[this.buildPlaced];
+    if (chip.word.jp === expected.jp) {
+      chip.used = true;
+      chip.bg.disableInteractive();
+      this.tweens.add({ targets: chip.container, alpha: 0.22, duration: 150 });
+
+      const slot = this.buildSlots[this.buildPlaced];
+      const isVerb = expected === this.puzzle.sentence.verb;
+      slot.rect.setFillStyle(isVerb ? COLORS.verb : COLORS.correct, 1).setStrokeStyle(2, 0x9affc0);
+      const t = this.add.text(slot.x, slot.rect.y, expected.jp, { fontFamily: 'system-ui', fontSize: '22px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(6);
+      if (t.width > slot.width - 8) t.setScale((slot.width - 8) / t.width);
+      speakJa(expected.jp);
+
+      this.buildPlaced++;
+      if (this.buildPlaced === this.buildOrder.length) {
+        this.solved = true;
+        speakJa(this.puzzle.sentence.jp);
+        this.toUpgrades(gradeFromBuild(this.buildMistakes, false));
+      }
+    } else {
+      this.buildMistakes++;
+      this.firstTry = false;
+      this.cameras.main.shake(110, 0.004);
+      chip.bg.setFillStyle(COLORS.wrong);
+      this.tweens.add({ targets: chip.container, x: chip.container.x + 6, duration: 50, yoyo: true, repeat: 3 });
+      this.time.delayedCall(260, () => {
+        if (!chip.used) chip.bg.setFillStyle(COLORS.chip);
+      });
+    }
+  }
+
   private renderTimer() {
     const w = GAME_WIDTH - 160;
     this.add.rectangle(80, 440, w, 6, COLORS.bgAlt).setOrigin(0, 0.5);
@@ -172,10 +313,11 @@ export class LevelUpScene extends Phaser.Scene {
   }
 
   private choose(opt: string, container: Phaser.GameObjects.Container) {
-    if (this.phase !== 'puzzle' || !this.puzzle) return;
+    if (this.phase !== 'puzzle' || !this.puzzle || this.puzzle.kind !== 'particle') return;
     const bg = container.getData('bg') as Phaser.GameObjects.Rectangle;
     if (opt === this.puzzle.correct) {
       this.solved = true;
+      this.answerParticle = this.puzzle.correct;
       bg.setFillStyle(COLORS.correct);
       this.socketText.setText(opt).setColor('#ffffff');
       this.socketBox.setFillStyle(COLORS.correct).setStrokeStyle(3, 0x9affc0);
@@ -271,6 +413,6 @@ export class LevelUpScene extends Phaser.Scene {
     const sid = this.puzzle?.sentence.sid;
     this.scene.stop();
     this.scene.resume('Run');
-    onComplete({ grade, heal, sid });
+    onComplete({ grade, heal, sid, answerParticle: this.answerParticle });
   }
 }

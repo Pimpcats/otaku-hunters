@@ -20,6 +20,7 @@ export interface PuzzleToken {
 }
 
 export interface Puzzle {
+  kind: 'particle';
   sentence: IndexedSentence;
   promptEn: string;
   tokens: PuzzleToken[]; // left→right display, including the one socket
@@ -28,28 +29,109 @@ export interface Puzzle {
   correct: string; // the correct particle jp
 }
 
+/** Word-order ("build the sentence") puzzle: arrange scrambled chips into the
+ *  correct order. Tests structure, and works on ANY eligible sentence (incl.
+ *  verb-less / particle-free ones), unlocking the rest of the content. */
+export interface BuildPuzzle {
+  kind: 'build';
+  sentence: IndexedSentence;
+  promptEn: string;
+  order: Word[]; // the correct sequence (= words[])
+  scrambled: Word[]; // the same words, shuffled, for the tray
+}
+
+export type AnyPuzzle = Puzzle | BuildPuzzle;
+
 /** Words collected this run; we only need their jp surface forms for matching. */
 export type CollectedPool = Set<string>;
 
-interface SelectOpts {
+export interface PickOpts {
+  level: number;
   /** Soft cap on difficulty so early level-ups stay trivial (brief §4.3). */
   maxDifficulty: number;
   /** How many wrong particle options to offer (tier scaling). */
   distractors: number;
   /** Recently-served sids to avoid repeating (variety). */
   recent?: Set<string>;
+  /** Recently-served answer particles, to break the は/を skew. */
+  recentParticles?: string[];
 }
+
+type Mode = 'particle' | 'build';
 
 function countCollected(s: IndexedSentence, pool: CollectedPool): number {
   return s.roleWords.reduce((n, w) => n + (pool.has(w.jp) ? 1 : 0), 0);
 }
 
-/** Weighted-random pick: favours sentences using more collected words and
- *  ones the SRS wants to resurface ("haunting"), so it's varied but not random
- *  noise. Returns null only for an empty list. */
-function weightedPick(cands: IndexedSentence[], pool: CollectedPool): IndexedSentence | null {
+function shuffle<T>(a: T[]): T[] {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+// Approx corpus frequency of each role-marker → rarer particles get tested
+// more, so the answer isn't は/を ~80% of the time.
+const PARTICLE_FREQ: Record<string, number> = {
+  を: 47, は: 36, に: 21, が: 16, で: 11, の: 8, と: 8, まで: 5, も: 2, へ: 1, から: 1,
+};
+function particleScore(p: string, recent?: string[]): number {
+  const rarity = 1 / (PARTICLE_FREQ[p] ?? 5);
+  const fresh = recent && recent.includes(p) ? 0.15 : 1; // down-weight just-seen answers
+  return rarity * fresh;
+}
+function bestParticleScore(s: IndexedSentence, recent?: string[]): number {
+  let best = 0;
+  for (const p of s.particles) if (isRoleMarker(p)) best = Math.max(best, particleScore(p, recent));
+  return best || 0.01;
+}
+
+/** Candidate sentences for a mode, narrowed by difficulty, collection & recency. */
+function candidatesFor(
+  stage: ResolvedStage,
+  pool: CollectedPool,
+  opts: PickOpts,
+  mode: Mode,
+): IndexedSentence[] {
+  const base = stage.sentences.filter((s) =>
+    mode === 'particle'
+      ? s.eligible && s.particles.some((p) => isRoleMarker(p))
+      : s.eligible && s.words.length >= 3, // build works on ANY orderable sentence
+  );
+  if (base.length === 0) return [];
+
+  const withinTier = base.filter((s) => s.difficulty <= opts.maxDifficulty);
+  const tierPool = withinTier.length > 0 ? withinTier : base;
+
+  // Collection tiers: full (every role word collected) → partial → cold-start.
+  // Particle-free sentences have no role words, so they're vacuously "full".
+  const full = tierPool.filter((s) => s.roleWords.every((w) => pool.has(w.jp)));
+  const partial = tierPool.filter((s) => s.roleWords.some((w) => pool.has(w.jp)));
+  let cands = full.length > 0 ? full : partial.length > 0 ? partial : tierPool;
+
+  if (opts.recent && opts.recent.size > 0) {
+    const fresh = cands.filter((s) => !opts.recent!.has(s.sid));
+    if (fresh.length > 0) cands = fresh;
+  }
+  return cands;
+}
+
+/** Weighted-random pick: favours more-collected & SRS-"haunted" sentences, and
+ *  (for particle mode) sentences offering a rarer/fresher particle answer. */
+function pickWeighted(
+  cands: IndexedSentence[],
+  pool: CollectedPool,
+  mode: Mode,
+  recentParticles?: string[],
+): IndexedSentence | null {
   if (cands.length === 0) return null;
-  const weights = cands.map((s) => (countCollected(s, pool) + 1) * hauntWeight(s.sid));
+  const weights = cands.map((s) => {
+    let w = (countCollected(s, pool) + 1) * hauntWeight(s.sid);
+    if (mode === 'particle') w *= bestParticleScore(s, recentParticles);
+    return w;
+  });
   const total = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
   for (let i = 0; i < cands.length; i++) {
@@ -59,40 +141,35 @@ function weightedPick(cands: IndexedSentence[], pool: CollectedPool): IndexedSen
   return cands[cands.length - 1];
 }
 
-/**
- * Sentence selection with run-only pool + fallbacks (brief §4.5), now
- * randomised for variety. Prefers sentences whose role words the player has
- * collected and that fit the difficulty budget, avoids recent repeats, and
- * never returns null while the stage has any eligible sentence (cold-start).
- */
+/** Back-compat particle-only selector (used by dev tools). */
 export function selectSentence(
   stage: ResolvedStage,
   pool: CollectedPool,
-  opts: SelectOpts,
+  opts: { maxDifficulty: number; distractors: number; recent?: Set<string> },
 ): IndexedSentence | null {
-  // Eligible = puzzle-safe (words rebuild jp) AND has at least one role-marker.
-  const eligible = stage.sentences.filter(
-    (s) => s.eligible && s.particles.some((p) => isRoleMarker(p)),
-  );
-  if (eligible.length === 0) return null;
+  const cands = candidatesFor(stage, pool, { ...opts, level: 1 }, 'particle');
+  return pickWeighted(cands, pool, 'particle');
+}
 
-  const withinTier = eligible.filter((s) => s.difficulty <= opts.maxDifficulty);
-  const tierPool = withinTier.length > 0 ? withinTier : eligible;
+/**
+ * Unified level-up puzzle picker. Chooses a MODE — particle drill vs
+ * build-the-sentence (the build share ramps with level) — selects a fitting,
+ * varied, skew-corrected sentence, and returns a ready puzzle. Falls back to
+ * the other mode if one has no candidates; null only if the stage has neither.
+ */
+export function pickPuzzle(stage: ResolvedStage, pool: CollectedPool, opts: PickOpts): AnyPuzzle | null {
+  const buildShare = clamp(0.35 + 0.03 * opts.level, 0.35, 0.6);
+  const first: Mode = Math.random() < buildShare ? 'build' : 'particle';
+  const order: Mode[] = first === 'build' ? ['build', 'particle'] : ['particle', 'build'];
 
-  // Choose the candidate set by how much the player has collected:
-  //  1) full match (every role word collected)  2) partial  3) cold-start (all).
-  const full = tierPool.filter((s) => s.roleWords.every((w) => pool.has(w.jp)));
-  const partial = tierPool.filter((s) => s.roleWords.some((w) => pool.has(w.jp)));
-  let candidates = full.length > 0 ? full : partial.length > 0 ? partial : tierPool;
-
-  // Avoid repeating the last few sentences, as long as something's left.
-  const recent = opts.recent;
-  if (recent && recent.size > 0) {
-    const fresh = candidates.filter((s) => !recent.has(s.sid));
-    if (fresh.length > 0) candidates = fresh;
+  for (const mode of order) {
+    const cands = candidatesFor(stage, pool, opts, mode);
+    const s = pickWeighted(cands, pool, mode, opts.recentParticles);
+    if (!s) continue;
+    const puzzle = mode === 'particle' ? buildTierA(s, opts.distractors, opts.recentParticles) : buildBuild(s);
+    if (puzzle) return puzzle;
   }
-
-  return weightedPick(candidates, pool);
+  return null;
 }
 
 /**
@@ -100,7 +177,11 @@ export function selectSentence(
  * to blank, render the rest as fixed chips. Sentence-final particles after the
  * verb become a non-interactive tail (brief §4.4).
  */
-export function buildTierA(sentence: IndexedSentence, distractors: number): Puzzle | null {
+export function buildTierA(
+  sentence: IndexedSentence,
+  distractors: number,
+  recentParticles?: string[],
+): Puzzle | null {
   const words = sentence.words;
 
   // Indices of socketable role-markers.
@@ -110,8 +191,11 @@ export function buildTierA(sentence: IndexedSentence, distractors: number): Puzz
   }
   if (markerIdxs.length === 0) return null;
 
-  // Blank one at random (variety across repeated plays).
-  const blankIdx = markerIdxs[Math.floor(Math.random() * markerIdxs.length)];
+  // Blank one, weighted toward rarer / not-recently-seen particles (skew fix).
+  const blankIdx = weightedIndex(
+    markerIdxs,
+    markerIdxs.map((i) => particleScore(words[i].jp, recentParticles)),
+  );
   const verbIdx = sentence.verb ? words.lastIndexOf(sentence.verb) : words.length - 1;
 
   const tokens: PuzzleToken[] = [];
@@ -130,6 +214,7 @@ export function buildTierA(sentence: IndexedSentence, distractors: number): Puzz
 
   const correct = words[blankIdx].jp;
   return {
+    kind: 'particle',
     sentence,
     promptEn: sentence.en,
     tokens,
@@ -139,8 +224,38 @@ export function buildTierA(sentence: IndexedSentence, distractors: number): Puzz
   };
 }
 
-/** Map the player's interaction to the three-grade scale (brief §4.6). */
+/** Build a "build the sentence" puzzle: the correct order plus a shuffled tray. */
+export function buildBuild(sentence: IndexedSentence): BuildPuzzle | null {
+  const order = sentence.words.slice();
+  if (order.length < 2) return null;
+  let scrambled = shuffle(order.slice());
+  // Avoid handing back an already-correct arrangement.
+  for (let t = 0; t < 6 && scrambled.every((w, i) => w === order[i]); t++) {
+    scrambled = shuffle(order.slice());
+  }
+  return { kind: 'build', sentence, promptEn: sentence.en, order, scrambled };
+}
+
+/** Index into `idxs` chosen weighted-randomly by `weights`. */
+function weightedIndex(idxs: number[], weights: number[]): number {
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0) return idxs[Math.floor(Math.random() * idxs.length)];
+  let r = Math.random() * total;
+  for (let i = 0; i < idxs.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return idxs[i];
+  }
+  return idxs[idxs.length - 1];
+}
+
+/** Map a particle drill's attempts to the three-grade scale (brief §4.6). */
 export function gradeFromAttempts(solvedFirstTry: boolean, gaveUp: boolean): Grade {
   if (gaveUp) return 'nope';
   return solvedFirstTry ? 'got_it' : 'kinda';
+}
+
+/** Map a build puzzle's mistakes to the three-grade scale. */
+export function gradeFromBuild(mistakes: number, gaveUp: boolean): Grade {
+  if (gaveUp) return 'nope';
+  return mistakes === 0 ? 'got_it' : 'kinda';
 }
