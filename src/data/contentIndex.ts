@@ -8,6 +8,7 @@
 import './lessons.js'; // side-effect: populates window.LEVELS / window.LESSONS
 import type { IndexedSentence, Lesson, Level, Word } from './types';
 import { isRoleMarker } from './particles-meta';
+import { readingOf } from '../systems/romaji';
 
 const CONTENT_POS = new Set<Word['pos']>(['n', 'adj', 'adv']);
 const VERB_POS = new Set<Word['pos']>(['v', 'cop', 'aux']);
@@ -50,9 +51,15 @@ function deriveSentence(
   lesson: Lesson,
   index: number,
   themeMap: Map<string, { levelId: string; tierName: string }>,
+  romajiHints: Map<string, string>,
 ): IndexedSentence {
   const raw = lesson.sentences[index];
-  const words = raw.words ?? [];
+  // Sentence tokens ship without per-word romaji; derive a reading for each so
+  // every Japanese chip downstream (level-up chips, ground tokens) can show it.
+  // Prefer an authored vocab reading (catches irregulars like こんにちは=konnichiwa).
+  const words = (raw.words ?? []).map((w) =>
+    w.romaji ? w : { ...w, romaji: romajiHints.get(w.jp) ?? readingOf(w.jp, w.pos) },
+  );
   const resolved = themeMap.get(lesson.section);
 
   // Eligibility: does words[] concatenate back to jp? (catches because#4 etc.)
@@ -115,13 +122,21 @@ export function getContentIndex(): ContentIndex {
   const levels: Level[] = window.LEVELS ?? [];
   const lessons: Lesson[] = window.LESSONS ?? [];
   const themeMap = buildThemeMap(levels);
+  // jp → authored romaji, harvested from every lesson's vocab, to seed readings
+  // for the romaji-less sentence tokens (and override irregular kana).
+  const romajiHints = new Map<string, string>();
+  for (const lesson of lessons) {
+    for (const w of lesson.vocab ?? []) {
+      if (w.romaji && !romajiHints.has(w.jp)) romajiHints.set(w.jp, w.romaji);
+    }
+  }
 
   const sentences: IndexedSentence[] = [];
   for (const lesson of lessons) {
     if (!Array.isArray(lesson.sentences)) continue;
     for (let i = 0; i < lesson.sentences.length; i++) {
       try {
-        sentences.push(deriveSentence(lesson, i, themeMap));
+        sentences.push(deriveSentence(lesson, i, themeMap, romajiHints));
       } catch (err) {
         // One bad entry never blocks the rest (guardrail §8.7).
         console.warn(`[contentIndex] skipped ${lesson.id}#${i}:`, err);

@@ -14,6 +14,7 @@ import {
 import { GRADE_STACKS, NOPE_HEAL, type Grade } from '../data/balance';
 import { PlayerLoadout, type UpgradeDef } from '../systems/loadout';
 import { recordGrade } from '../systems/srs';
+import { readingOf, toRomaji } from '../systems/romaji';
 import { speakJa } from '../audio/tts';
 import type { LevelUpResult } from './RunScene';
 
@@ -122,6 +123,14 @@ export class LevelUpScene extends Phaser.Scene {
     this.add.text(cx, 124, `“${promptEn}”`, { fontFamily: 'system-ui', fontSize: '24px', color: '#ffffff', fontStyle: 'italic', wordWrap: { width: GAME_WIDTH - 120 }, align: 'center' }).setOrigin(0.5);
   }
 
+  /** Small italic romaji caption centred at (x, y) — the reading under a kana chip. */
+  private romaji(x: number, y: number, reading: string, size = 12) {
+    return this.add
+      .text(x, y, reading, { fontFamily: 'system-ui', fontSize: `${size}px`, color: '#8aa0c8', fontStyle: 'italic' })
+      .setOrigin(0.5)
+      .setDepth(6);
+  }
+
   private renderSentence(cx: number) {
     const p = this.puzzle as Puzzle;
     const y = 210;
@@ -155,6 +164,8 @@ export class LevelUpScene extends Phaser.Scene {
             // label was created first (to measure) so the rect would cover it —
             // reposition AND lift it above the rectangle.
             label.setPosition(x + width / 2, y).setDepth(5);
+            // romaji reading under the kana, for beginners
+            this.romaji(x + width / 2, y + chipH / 2 + 11, tok.word.romaji ?? readingOf(tok.word.jp, tok.word.pos));
           },
         });
       }
@@ -180,8 +191,9 @@ export class LevelUpScene extends Phaser.Scene {
     for (const opt of p.options) {
       const container = this.add.container(x, y);
       const bg = this.add.rectangle(0, 0, btnW, btnH, COLORS.particleChip).setStrokeStyle(2, 0xc4a8ff).setInteractive({ useHandCursor: true });
-      const txt = this.add.text(0, 0, opt, { fontFamily: 'system-ui', fontSize: '28px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+      const txt = this.add.text(0, -8, opt, { fontFamily: 'system-ui', fontSize: '26px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
       container.add([bg, txt]);
+      container.add(this.romaji(0, btnH / 2 - 12, readingOf(opt, 'prt'), 13)); // reading inside the button
       container.setData('bg', bg);
       bg.on('pointerup', () => this.choose(opt, container));
       x += btnW + gap;
@@ -256,8 +268,9 @@ export class LevelUpScene extends Phaser.Scene {
       for (const it of r.items) {
         const container = this.add.container(x + it.width / 2, y);
         const bg = this.add.rectangle(0, 0, it.width, chipH, COLORS.chip).setStrokeStyle(2, 0x5560a0).setInteractive({ useHandCursor: true });
-        const txt = this.add.text(0, 0, it.w.jp, { fontFamily: 'system-ui', fontSize: '24px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+        const txt = this.add.text(0, -7, it.w.jp, { fontFamily: 'system-ui', fontSize: '22px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
         container.add([bg, txt]);
+        container.add(this.romaji(0, 13, it.w.romaji ?? readingOf(it.w.jp, it.w.pos), 11)); // reading under the kana
         const chip: TrayChip = { word: it.w, container, bg, used: false };
         bg.on('pointerup', () => this.onTrayTap(chip));
         this.trayChips.push(chip);
@@ -279,8 +292,9 @@ export class LevelUpScene extends Phaser.Scene {
       const slot = this.buildSlots[this.buildPlaced];
       const isVerb = expected === sentence.verb;
       slot.rect.setFillStyle(isVerb ? COLORS.verb : COLORS.correct, 1).setStrokeStyle(2, 0x9affc0);
-      const t = this.add.text(slot.x, slot.rect.y, expected.jp, { fontFamily: 'system-ui', fontSize: '22px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(6);
+      const t = this.add.text(slot.x, slot.rect.y - 7, expected.jp, { fontFamily: 'system-ui', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(6);
       if (t.width > slot.width - 8) t.setScale((slot.width - 8) / t.width);
+      this.romaji(slot.x, slot.rect.y + 12, expected.romaji ?? readingOf(expected.jp, expected.pos), 11);
       speakJa(expected.jp);
 
       this.buildPlaced++;
@@ -321,6 +335,8 @@ export class LevelUpScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setDepth(5);
+    // reading under the kana prompt (jp→en direction)
+    if (big) this.romaji(cx, 190, readingOf(p.word.jp, p.word.pos, p.word.romaji), 18);
     if (big) speakJa(p.prompt);
 
     const isJpOption = p.direction === 'en2jp';
@@ -331,15 +347,17 @@ export class LevelUpScene extends Phaser.Scene {
     for (const opt of p.options) {
       const container = this.add.container(cx, y);
       const bg = this.add.rectangle(0, 0, btnW, btnH, COLORS.chip).setStrokeStyle(2, 0x5560a0).setInteractive({ useHandCursor: true });
-      const txt = this.add.text(0, 0, opt, {
+      const txt = this.add.text(0, isJpOption ? -7 : 0, opt, {
         fontFamily: 'system-ui',
-        fontSize: isJpOption ? '26px' : '20px',
+        fontSize: isJpOption ? '24px' : '20px',
         color: '#ffffff',
         fontStyle: 'bold',
         align: 'center',
         wordWrap: { width: btnW - 24 },
       }).setOrigin(0.5);
       container.add([bg, txt]);
+      // reading inside the button for the kana options (en→jp direction)
+      if (isJpOption) container.add(this.romaji(0, 13, toRomaji(opt), 12));
       container.setData('bg', bg);
       bg.on('pointerup', () => this.chooseTranslate(opt, container));
       y += btnH + gap;
