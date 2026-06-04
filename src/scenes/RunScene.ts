@@ -23,6 +23,7 @@ import { speakJa } from '../audio/tts';
 import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
+import { readingOf } from '../systems/romaji';
 
 const WORLD = 4000;
 const WORD_DROP_CHANCE = 0.18;
@@ -300,6 +301,8 @@ export class RunScene extends Phaser.Scene {
     // XP boost: scales with level, decays the longer it sat on the ground.
     const age = (this.time.now - ((w.getData('dropTime') as number) ?? this.time.now)) / 1000;
     const gain = Math.round(wordTokenXp(this.level, age) * this.loadout.stats().growth);
+    (w.getData('label') as Phaser.GameObjects.Text | undefined)?.destroy();
+    w.setData('label', undefined);
     w.disableBody(true, true);
     this.wordTokens.killAndHide(w);
     this.xp += gain;
@@ -310,7 +313,7 @@ export class RunScene extends Phaser.Scene {
     if (word) {
       speakJa(word.jp);
       // jp + romaji + english + the XP gained, held a few seconds then slow-fade
-      const romaji = word.romaji ? `  (${word.romaji})` : '';
+      const romaji = `  (${readingOf(word.jp, word.pos, word.romaji)})`;
       this.floatLabel(
         this.player.x,
         this.player.y - 28,
@@ -344,6 +347,21 @@ export class RunScene extends Phaser.Scene {
     w.setData('dropTime', this.time.now);
     w.setBlendMode(Phaser.BlendModes.ADD);
     this.tweens.add({ targets: w, scale: 1.25, duration: 500, yoyo: true, repeat: -1 });
+    // Floating reading (kana + romaji) so beginners can read it on the ground.
+    const label = this.add
+      .text(x, y - 14, `${word.jp}\n${readingOf(word.jp, word.pos, word.romaji)}`, {
+        fontFamily: 'system-ui',
+        fontSize: '13px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        align: 'center',
+        lineSpacing: 1,
+        stroke: '#0b0d1a',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(32);
+    w.setData('label', label);
   }
 
   private pickSpawnWord(pool: Word[]): Word {
@@ -531,6 +549,8 @@ export class RunScene extends Phaser.Scene {
       const age = (this.time.now - ((w.getData('dropTime') as number) ?? this.time.now)) / 1000;
       const f = Phaser.Math.Clamp(age / WORD_XP.decaySeconds, 0, 1);
       w.setAlpha(1 - 0.5 * f);
+      const label = w.getData('label') as Phaser.GameObjects.Text | undefined;
+      if (label) label.setPosition(w.x, w.y - 14).setAlpha(1 - 0.5 * f);
     }
 
     // regen + maxHp upkeep

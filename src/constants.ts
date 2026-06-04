@@ -36,6 +36,8 @@ export const TEX = {
   merchMule: 'char_merchmule',
   boss: 'char_boss',
   bullet: 'tex_bullet',
+  pocky: 'tex_pocky', // pocky-stick projectile
+  shuriken: 'tex_shuriken', // throwing-star projectile
   xp: 'tex_xp',
   word: 'tex_word',
 } as const;

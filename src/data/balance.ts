@@ -19,6 +19,8 @@
 //
 // Tuned via simulation for the "beatable but tense" target — see BALANCE.md.
 
+import { TEX } from '../constants'; // projectile texture keys (pure string consts)
+
 export const RUN_LENGTH = 1200; // seconds → boss at 20:00
 export const BOSS_TIME = 1200;
 
@@ -152,8 +154,10 @@ export interface WeaponDef {
   evolvesTo?: string; // weapon id of the evolved form
   evolveRequires?: StatId; // passive that must be owned to evolve
   // ── Visual identity (so each weapon reads distinctly on screen) ──
+  projTexture?: string; // bullet texture key (defaults to the round orb)
   tint?: number; // multiplies the bullet texture; for auras, tints the pulse ring
   projScale?: number; // extra projectile scale on top of the Area stat (default 1)
+  spin?: number; // projectile angular velocity in deg/s (e.g. spinning shuriken)
 }
 
 export const WEAPONS: Record<string, WeaponDef> = {
@@ -165,8 +169,9 @@ export const WEAPONS: Record<string, WeaponDef> = {
     maxLevel: 8,
     evolvesTo: 'pocky_evo',
     evolveRequires: 'might',
-    tint: 0xff7ab8, // pink pocky stick
-    projScale: 1.15,
+    projTexture: TEX.pocky, // pink biscuit stick
+    tint: 0xff7ab8,
+    projScale: 0.7,
     level: (L) => ({
       damage: 13 + 5 * (L - 1),
       cooldown: Math.max(360, 600 - 28 * (L - 1)),
@@ -202,8 +207,10 @@ export const WEAPONS: Record<string, WeaponDef> = {
     maxLevel: 8,
     evolvesTo: 'shuriken_evo',
     evolveRequires: 'projSpeed',
-    tint: 0xd8ecff, // steel-white stars
-    projScale: 0.8,
+    projTexture: TEX.shuriken, // spinning steel star
+    tint: 0xd8ecff,
+    projScale: 0.7,
+    spin: 720,
     level: (L) => ({
       damage: 7 + 3 * (L - 1),
       cooldown: Math.max(260, 420 - 20 * (L - 1)),
@@ -225,8 +232,9 @@ export const WEAPONS: Record<string, WeaponDef> = {
     name: 'Pocky Overdrive',
     kind: 'projectile',
     maxLevel: 1,
+    projTexture: TEX.pocky,
     tint: 0xff3df0,
-    projScale: 1.5,
+    projScale: 0.95,
     level: () => ({ damage: 62, cooldown: 330, amount: 4, speed: 720, pierce: 4, range: 1000 }),
   },
   aura_evo: {
@@ -242,8 +250,10 @@ export const WEAPONS: Record<string, WeaponDef> = {
     name: 'Thousand Cuts',
     kind: 'projectile',
     maxLevel: 1,
+    projTexture: TEX.shuriken,
     tint: 0x8af6ff,
-    projScale: 0.9,
+    projScale: 0.85,
+    spin: 900,
     level: () => ({ damage: 30, cooldown: 150, amount: 8, speed: 600, pierce: 4, range: 560 }),
   },
 };
