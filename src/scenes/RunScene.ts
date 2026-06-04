@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, PLAYER, TEX } from '../constants';
+import { COLORS, TEX } from '../constants';
 import { getStage, type ResolvedStage } from '../data/stages';
 import { getCharacter, type CharacterDef } from '../data/characters';
 import type { Word } from '../data/types';
@@ -22,6 +22,7 @@ import { PlayerLoadout } from '../systems/loadout';
 import { speakJa } from '../audio/tts';
 import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
+import { configurePlayerSprite } from '../ui/playerSheet';
 
 const WORLD = 4000;
 const WORD_DROP_CHANCE = 0.18;
@@ -110,7 +111,7 @@ export class RunScene extends Phaser.Scene {
     this.drawBackground();
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
-    this.player.setCircle(PLAYER.radius, 0, 0);
+    configurePlayerSprite(this, this.player, this.character.id);
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(50);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
