@@ -43,7 +43,8 @@ export class RunScene extends Phaser.Scene {
   private stage!: ResolvedStage;
   private character!: CharacterDef;
   private loadout!: PlayerLoadout;
-  private player!: Sprite;
+  private player!: Sprite; // physics body (invisible); collisions/camera follow this
+  private rig!: Phaser.GameObjects.Sprite; // visible art, bobs around the body
   private enemies!: Phaser.Physics.Arcade.Group;
   private gems!: Phaser.Physics.Arcade.Group;
   private wordTokens!: Phaser.Physics.Arcade.Group;
@@ -116,10 +117,16 @@ export class RunScene extends Phaser.Scene {
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
-    initWalkBob(this.player); // capture resting scale for the procedural walk-bob
     this.player.setCollideWorldBounds(true);
-    this.player.setDepth(50);
+    this.player.setVisible(false); // the body is invisible; the rig below is the art
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+
+    // Visible sprite decoupled from the physics body so the walk-bob (a vertical
+    // hop) never disturbs the hitbox or camera — the rig just tracks the body.
+    this.rig = this.add.sprite(this.player.x, this.player.y, dirTextureKey(this.character.texture, 'down'));
+    this.rig.setScale(this.player.scaleX, this.player.scaleY);
+    this.rig.setDepth(50);
+    initWalkBob(this.rig);
 
     this.enemies = this.physics.add.group();
     this.gems = this.physics.add.group();
@@ -281,8 +288,8 @@ export class RunScene extends Phaser.Scene {
     const dmg = Math.max(1, ed.contact - this.loadout.stats().armor);
     this.hp -= dmg;
     this.cameras.main.shake(120, 0.006);
-    this.player.setTintFill(0xff5a5a);
-    this.time.delayedCall(90, () => this.player.clearTint());
+    this.rig.setTintFill(0xff5a5a);
+    this.time.delayedCall(90, () => this.rig.clearTint());
     if (this.hp <= 0) this.gameOver();
   };
 
@@ -479,7 +486,7 @@ export class RunScene extends Phaser.Scene {
       this.lastHit = this.time.now + 1200; // ~1.8s of i-frames to get clear
       this.cameras.main.flash(220, 180, 255, 200);
       this.banner('REVIVED!', COLORS.xpBar);
-      this.player.clearTint();
+      this.rig.clearTint();
       return;
     }
     this.dead = true;
@@ -524,8 +531,8 @@ export class RunScene extends Phaser.Scene {
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(this.dir.x * speed, this.dir.y * speed);
     const moving = this.dir.x !== 0 || this.dir.y !== 0;
     this.facing = vectorToCardinal(this.dir.x, this.dir.y, this.facing);
-    applyFacing(this.player, this.character.texture, this.facing, moving ? 'walk' : 'idle');
-    tickWalkBob(this.player, moving, delta); // step bob + side-rock on top of the frame
+    applyFacing(this.rig, this.character.texture, this.facing, moving ? 'walk' : 'idle');
+    tickWalkBob(this.rig, this.player.x, this.player.y, moving, delta); // bob around the body
 
     // enemy AI + facing (from their resulting velocity)
     for (const obj of this.enemies.getChildren()) {

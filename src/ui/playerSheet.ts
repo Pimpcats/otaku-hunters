@@ -159,7 +159,8 @@ export function registerPlayerAnims(scene: Phaser.Scene): void {
         scene.anims.create({
           key,
           frames: idxs.map((frame) => ({ key: sh.key, frame })),
-          frameRate: 7,
+          frameRate: 6,
+          yoyo: true, // ping-pong the 3 poses so it eases back instead of hard-cutting
           repeat: -1,
         });
       }
