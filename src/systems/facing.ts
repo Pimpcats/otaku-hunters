@@ -58,6 +58,12 @@ export function applyFacing(
     sprite.play(anim, true);
     return;
   }
+  // No animation for this set/state (e.g. idle, or a class with no walk frames):
+  // fall back to the static directional frame. Stop any walk anim still playing
+  // so the sprite settles on the static frame instead of freezing mid-cycle.
   const tex = dirTextureKey(base, set);
-  if (sprite.scene.textures.exists(tex)) sprite.setTexture(tex);
+  if (sprite.scene.textures.exists(tex)) {
+    if (sprite.anims.isPlaying) sprite.anims.stop();
+    sprite.setTexture(tex);
+  }
 }
