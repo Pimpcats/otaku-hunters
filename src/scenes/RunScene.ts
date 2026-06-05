@@ -24,6 +24,10 @@ import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
 import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
+import { RENDER, DEPTH, baselineY } from '../data/render';
+import { ShadowLayer } from '../systems/shadows';
+import { Backdrop } from '../systems/backdrop';
+import { Atmosphere } from '../ui/atmosphere';
 import { readingOf } from '../systems/romaji';
 
 const WORLD = 4000;
@@ -52,6 +56,8 @@ export class RunScene extends Phaser.Scene {
   private spawner!: Spawner;
   private controls!: InputController;
   private hud!: Hud;
+  private ground!: Backdrop;
+  private shadows!: ShadowLayer;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
 
@@ -113,13 +119,17 @@ export class RunScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, WORLD, WORLD);
     this.cameras.main.setBounds(0, 0, WORLD, WORLD);
-    this.drawBackground();
+    // Layers 3+4: the tilted ground plane + parallax (screen-space, behind everything).
+    this.ground = new Backdrop(this);
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
     this.player.setCollideWorldBounds(true);
     this.player.setVisible(false); // the body is invisible; the rig below is the art
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    // As tilt rises, drop the player lower on screen so the floor (and the 360°
+    // swarm) stays framed above them.
+    this.cameras.main.setFollowOffset(0, RENDER.cameraHeightBias * this.cameras.main.height * RENDER.groundTilt);
 
     // Visible sprite decoupled from the physics body so the walk-bob (a vertical
     // hop) never disturbs the hitbox or camera — the rig just tracks the body.
@@ -127,6 +137,8 @@ export class RunScene extends Phaser.Scene {
     this.rig.setScale(this.player.scaleX, this.player.scaleY);
     this.rig.setDepth(50);
     initWalkBob(this.rig);
+
+    this.shadows = new ShadowLayer(this);
 
     this.enemies = this.physics.add.group();
     this.gems = this.physics.add.group();
@@ -143,8 +155,11 @@ export class RunScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.wordTokens, this.onCollectWord, undefined, this);
 
     // Floating HP bar above the player (world-space).
-    this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(60);
-    this.hpBarFill = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hp).setOrigin(0, 0.5).setDepth(61);
+    this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(DEPTH.hpBar);
+    this.hpBarFill = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hp).setOrigin(0, 0.5).setDepth(DEPTH.hpBar + 1);
+
+    // Layer 5: vignette + poppy grade (static screen-space overlays, below the HUD).
+    new Atmosphere(this);
 
     // Pause on ESC or Space.
     this.input.keyboard?.on('keydown-ESC', this.openPause, this);
@@ -166,15 +181,6 @@ export class RunScene extends Phaser.Scene {
     this.hpBarFill.width = HP_BAR_W * ratio;
     const col = ratio > 0.5 ? 0x7cff9e : ratio > 0.25 ? 0xffd166 : 0xff5a5a;
     this.hpBarFill.setFillStyle(col);
-  }
-
-  private drawBackground() {
-    const g = this.add.graphics();
-    g.fillStyle(COLORS.bg, 1).fillRect(0, 0, WORLD, WORLD);
-    g.lineStyle(1, COLORS.bgAlt, 1);
-    for (let x = 0; x <= WORLD; x += 64) g.lineBetween(x, 0, x, WORLD);
-    for (let y = 0; y <= WORLD; y += 64) g.lineBetween(0, y, WORLD, y);
-    g.setDepth(-10);
   }
 
   // ── spawning ───────────────────────────────────────────────────────────
@@ -389,6 +395,7 @@ export class RunScene extends Phaser.Scene {
       blendMode: 'ADD',
       emitting: false,
     });
+    e.setDepth(DEPTH.vfx);
     e.explode(8);
     this.time.delayedCall(320, () => e.destroy());
   }
@@ -412,7 +419,7 @@ export class RunScene extends Phaser.Scene {
         strokeThickness: 4,
       })
       .setOrigin(0.5)
-      .setDepth(200);
+      .setDepth(DEPTH.label);
     // Drift up slowly over the whole life; stay solid for `hold`, then fade.
     this.tweens.add({ targets: t, y: y - rise, duration: hold + fade, ease: 'Sine.out' });
     this.tweens.add({ targets: t, alpha: 0, delay: hold, duration: fade, onComplete: () => t.destroy() });
@@ -428,7 +435,7 @@ export class RunScene extends Phaser.Scene {
         fontStyle: 'bold',
       })
       .setOrigin(0.5)
-      .setDepth(400);
+      .setDepth(DEPTH.banner);
     this.tweens.add({ targets: t, alpha: 0, scale: 1.3, duration: 1400, ease: 'Cubic.out', onComplete: () => t.destroy() });
   }
 
@@ -507,11 +514,11 @@ export class RunScene extends Phaser.Scene {
     this.add
       .text(cx, cy - 20, title, { fontFamily: 'system-ui', fontSize: '48px', color: '#' + color.toString(16).padStart(6, '0'), fontStyle: 'bold' })
       .setOrigin(0.5)
-      .setDepth(500);
+      .setDepth(DEPTH.overlay);
     this.add
       .text(cx, cy + 34, `LV ${this.level} · 語 ${this.collectedWords.size} · tap to continue`, { fontFamily: 'system-ui', fontSize: '18px', color: '#ffffff' })
       .setOrigin(0.5)
-      .setDepth(500);
+      .setDepth(DEPTH.overlay);
     this.controls.destroy();
     this.time.delayedCall(700, () => {
       this.input.once(Phaser.Input.Events.POINTER_DOWN, () => this.scene.start('Meta'));
@@ -525,6 +532,8 @@ export class RunScene extends Phaser.Scene {
     this.elapsed += dt;
     const stats = this.loadout.stats();
 
+    this.ground.update(); // redraw the tilted floor + parallax for the camera's position
+
     // movement + 4-direction facing
     this.controls.getDirection(this.dir);
     const speed = this.character.baseMoveSpeed * stats.moveSpeed;
@@ -533,17 +542,31 @@ export class RunScene extends Phaser.Scene {
     this.facing = vectorToCardinal(this.dir.x, this.dir.y, this.facing);
     applyFacing(this.rig, this.character.texture, this.facing, moving ? 'walk' : 'idle');
     tickWalkBob(this.rig, this.player.x, this.player.y, moving, delta); // bob around the body
+    // Layer 1: y-sort by the BODY baseline (not the bobbing rig) so depth is stable.
+    if (RENDER.ySort) this.rig.setDepth(baselineY(this.player));
+    // Layer 2: shadow planted at the body baseline (does not bob with the rig).
+    this.shadows.sync(this.player, {
+      x: this.player.x,
+      baseY: baselineY(this.player),
+      width: this.rig.displayWidth,
+      height: this.player.displayHeight,
+    });
 
     // enemy AI + facing (from their resulting velocity)
     for (const obj of this.enemies.getChildren()) {
       const e = obj as Sprite;
-      if (!e.active) continue;
+      if (!e.active) {
+        this.shadows.hide(e); // recycled out of the pool — drop its planted shadow
+        continue;
+      }
       const arc = (e.getData('edata') as EnemyData).archetype;
       arc.ai(e, this.player, delta);
       const body = e.body as Phaser.Physics.Arcade.Body;
       const face = vectorToCardinal(body.velocity.x, body.velocity.y, (e.getData('face') as Cardinal) ?? 'down');
       e.setData('face', face);
       applyFacing(e, arc.texture, face, 'walk');
+      if (RENDER.ySort) e.setDepth(baselineY(e));
+      this.shadows.sync(e);
     }
 
     // weapons
@@ -555,10 +578,15 @@ export class RunScene extends Phaser.Scene {
     // Word tokens fade as they decay (grab them fast for full XP).
     for (const obj of this.wordTokens.getChildren()) {
       const w = obj as Sprite;
-      if (!w.active) continue;
+      if (!w.active) {
+        this.shadows.hide(w);
+        continue;
+      }
       const age = (this.time.now - ((w.getData('dropTime') as number) ?? this.time.now)) / 1000;
       const f = Phaser.Math.Clamp(age / WORD_XP.decaySeconds, 0, 1);
       w.setAlpha(1 - 0.5 * f);
+      if (RENDER.ySort) w.setDepth(baselineY(w));
+      this.shadows.sync(w, { width: 18 });
       const label = w.getData('label') as Phaser.GameObjects.Text | undefined;
       if (label) label.setPosition(w.x, w.y - 14).setAlpha(1 - 0.5 * f);
     }
@@ -592,13 +620,18 @@ export class RunScene extends Phaser.Scene {
     const r2 = range * range;
     for (const obj of group.getChildren()) {
       const s = obj as Sprite;
-      if (!s.active) continue;
+      if (!s.active) {
+        this.shadows.hide(s);
+        continue;
+      }
       const dx = px - s.x;
       const dy = py - s.y;
       if (dx * dx + dy * dy < r2) {
         const len = Math.hypot(dx, dy) || 1;
         (s.body as Phaser.Physics.Arcade.Body).setVelocity((dx / len) * speed, (dy / len) * speed);
       }
+      if (RENDER.ySort) s.setDepth(baselineY(s));
+      this.shadows.sync(s, { width: 13 });
     }
   }
 
