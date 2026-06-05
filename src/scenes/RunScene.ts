@@ -22,7 +22,7 @@ import { Spawner } from '../systems/spawner';
 import { Hud } from '../ui/hud';
 import { ARCHETYPES, type EnemyData } from '../entities/enemies/archetypes';
 import { PlayerLoadout } from '../systems/loadout';
-import { speakJa } from '../audio/tts';
+import { speak } from '../audio/tts';
 import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
@@ -368,7 +368,7 @@ export class RunScene extends Phaser.Scene {
       this.collectedWords.set(word.jp, word);
     }
     if (word) {
-      speakJa(word.jp);
+      speak(word.jp);
       // jp + romaji + english + the XP gained, held a few seconds then slow-fade
       const romaji = `  (${readingOf(word.jp, word.pos, word.romaji)})`;
       this.floatLabel(
@@ -474,7 +474,7 @@ export class RunScene extends Phaser.Scene {
       sub = evo.name;
       if (evo.vocab) {
         vocabLine = `${evo.vocab.jp}  ${evo.vocab.romaji} — ${evo.vocab.meaning}`;
-        speakJa(evo.vocab.jp);
+        speak(evo.vocab.jp);
       }
       this.cameras.main.flash(240, 255, 225, 150);
     } else {
@@ -484,7 +484,7 @@ export class RunScene extends Phaser.Scene {
       title = 'ガチャ ✦ Bonus!';
       sub = `Full heal  +  ${this.pendingGachaXp} XP`;
       vocabLine = 'ガチャ  Gacha — capsule-toy';
-      speakJa('ガチャ');
+      speak('ガチャ');
     }
     const line = (y: number, text: string, size: number, color: string, italic = false) =>
       layer.add(

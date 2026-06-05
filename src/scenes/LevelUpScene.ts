@@ -15,7 +15,7 @@ import { GRADE_STACKS, NOPE_HEAL, type Grade } from '../data/balance';
 import { PlayerLoadout, type UpgradeDef } from '../systems/loadout';
 import { recordGrade } from '../systems/srs';
 import { readingOf, toRomaji } from '../systems/romaji';
-import { speakJa } from '../audio/tts';
+import { speak } from '../audio/tts';
 import type { LevelUpResult } from './RunScene';
 
 interface LevelUpData {
@@ -295,12 +295,12 @@ export class LevelUpScene extends Phaser.Scene {
       const t = this.add.text(slot.x, slot.rect.y - 7, expected.jp, { fontFamily: 'system-ui', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(6);
       if (t.width > slot.width - 8) t.setScale((slot.width - 8) / t.width);
       this.romaji(slot.x, slot.rect.y + 12, expected.romaji ?? readingOf(expected.jp, expected.pos), 11);
-      speakJa(expected.jp);
+      speak(expected.jp);
 
       this.buildPlaced++;
       if (this.buildPlaced === this.buildOrder.length) {
         this.solved = true;
-        speakJa(sentence.jp);
+        speak(sentence.jp);
         this.toUpgrades(gradeFromBuild(this.buildMistakes, false));
       }
     } else {
@@ -337,7 +337,7 @@ export class LevelUpScene extends Phaser.Scene {
       .setDepth(5);
     // reading under the kana prompt (jp→en direction)
     if (big) this.romaji(cx, 190, readingOf(p.word.jp, p.word.pos, p.word.romaji), 18);
-    if (big) speakJa(p.prompt);
+    if (big) speak(p.prompt);
 
     const isJpOption = p.direction === 'en2jp';
     const btnW = 440;
@@ -375,7 +375,7 @@ export class LevelUpScene extends Phaser.Scene {
     if (opt === this.puzzle.correct) {
       this.solved = true;
       bg.setFillStyle(COLORS.correct);
-      speakJa(this.puzzle.speak);
+      speak(this.puzzle.speak);
       this.toUpgrades(gradeFromAttempts(this.firstTry, false));
     } else {
       this.firstTry = false;
@@ -412,7 +412,7 @@ export class LevelUpScene extends Phaser.Scene {
       this.socketBox.setFillStyle(COLORS.correct).setStrokeStyle(3, 0x9affc0);
       this.tweens.killTweensOf(this.socketBox);
       this.socketBox.setScale(1);
-      speakJa(this.puzzle.sentence.jp);
+      speak(this.puzzle.sentence.jp);
       this.toUpgrades(gradeFromAttempts(this.firstTry, false));
     } else {
       this.firstTry = false;

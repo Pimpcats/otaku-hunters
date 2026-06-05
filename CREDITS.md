@@ -29,6 +29,22 @@ its source URL + license before committing.
 | `public/kenney/pocky.png` · `shuriken.png` · `bullet.png` | Projectiles (white → tinted) | empty — procedural |
 | `public/kenney/xp_gem.png` · `word_token.png` | Pickups | empty — procedural |
 
+## Audio — VOICEVOX
+Japanese voice clips are pre-generated with **[VOICEVOX](https://voicevox.hertz-storm.com/)**
+(free, redistributable text-to-speech) and shared with the Hanasou study app. They
+live in `public/audio/` with a `manifest.json` mapping each Japanese string to its
+clip file(s) (normal + optional slow). The game plays the matching clip for word
+pickups, chip placement, and full-sentence assembly, falling back to the device
+Web Speech API for any line without a clip (`src/audio/tts.ts`).
+
+> Per VOICEVOX terms, **credit the specific voice character(s) used** (e.g.
+> "VOICEVOX:四国めたん") wherever the generated audio is presented. List the exact
+> character(s) from Hanasou's set here once the clips are dropped in.
+
+| Asset | Path | Source | License | Notes |
+|-------|------|--------|---------|-------|
+| Japanese voice clips | `public/audio/*` + `manifest.json` | [VOICEVOX](https://voicevox.hertz-storm.com/) (pre-generated, via Hanasou) | VOICEVOX terms — free use **with credit to the voice character** | `manifest.json` ships as `{}`; real clips + manifest copied from Hanasou. Name the voice character(s) above. |
+
 ## Standing rule
 Any externally-sourced asset (or procedural stand-in for one) gets a row here with
 its **source URL** and **license** before it's committed. CC0 / public-domain only
