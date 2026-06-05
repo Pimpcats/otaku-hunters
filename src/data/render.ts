@@ -27,7 +27,7 @@ export const RENDER = {
   gridScroll: 1.0, // how strongly the floor grid tracks camera movement
   // Real tiling floor texture (vs. the wireframe grid). Same perspective/rowY
   // recession either way — this just swaps the wireframe look for a real surface.
-  floorTexture: true, // false → fall back to the wireframe grid for comparison
+  floorTexture: false, // wireframe grid (the established look); flip true for the tiling texture
   floorTileWorld: 110, // world px that one texture tile spans (bigger = crisper recession)
 
   // ── Layer 4: Parallax background ────────────────────────────────────────────
