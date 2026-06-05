@@ -23,6 +23,7 @@ import { speakJa } from '../audio/tts';
 import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
+import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
 import { readingOf } from '../systems/romaji';
 
 const WORLD = 4000;
@@ -115,6 +116,7 @@ export class RunScene extends Phaser.Scene {
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
+    initWalkBob(this.player); // capture resting scale for the procedural walk-bob
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(50);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -523,6 +525,7 @@ export class RunScene extends Phaser.Scene {
     const moving = this.dir.x !== 0 || this.dir.y !== 0;
     this.facing = vectorToCardinal(this.dir.x, this.dir.y, this.facing);
     applyFacing(this.player, this.character.texture, this.facing, moving ? 'walk' : 'idle');
+    tickWalkBob(this.player, moving, delta); // step bob + side-rock on top of the frame
 
     // enemy AI + facing (from their resulting velocity)
     for (const obj of this.enemies.getChildren()) {

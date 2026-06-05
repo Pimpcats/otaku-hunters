@@ -5,11 +5,16 @@ import { STAGES } from '../data/stages';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { WEAPONS } from '../data/balance';
 import { dirTextureKey } from '../systems/facing';
+import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
 
 // Meta screen: title + character select (three distinct hunters) + tap to start.
 // Picking a card launches the run with that character. Stage select / unlocks /
 // meta-shop come later.
 export class MetaScene extends Phaser.Scene {
+  // Card portraits that walk in place (procedural bob for all, real frame cycle
+  // for any class whose sheet defines one — currently the goth).
+  private walkers: Phaser.GameObjects.Sprite[] = [];
+
   constructor() {
     super('Meta');
   }
@@ -22,6 +27,7 @@ export class MetaScene extends Phaser.Scene {
 
   create() {
     const cx = GAME_WIDTH / 2;
+    this.walkers = []; // create() re-runs on every return to this scene
     this.cameras.main.setBackgroundColor(COLORS.bg);
 
     this.add
@@ -100,10 +106,16 @@ export class MetaScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     // The character's actual sprite, scaled to a fixed portrait height (works
-    // for both the small procedural art and the large baked sheet frames).
+    // for both the small procedural art and the large baked sheet frames). A
+    // Sprite (not Image) so it can play the walk-cycle animation; all three then
+    // walk in place via the procedural bob below.
     const PORTRAIT_H = 88;
-    const sprite = this.add.image(0, -h / 2 + 72, dirTextureKey(c.texture, 'down'));
+    const sprite = this.add.sprite(0, -h / 2 + 72, dirTextureKey(c.texture, 'down'));
     sprite.setScale(PORTRAIT_H / sprite.height);
+    const walkKey = `${c.texture}-down-walk`;
+    if (this.anims.exists(walkKey)) sprite.play(walkKey);
+    initWalkBob(sprite);
+    this.walkers.push(sprite);
 
     const name = this.add
       .text(0, -h / 2 + 124, c.name, {
@@ -153,6 +165,11 @@ export class MetaScene extends Phaser.Scene {
     this.input.keyboard?.on(`keydown-${['ONE', 'TWO', 'THREE'][index - 1]}`, () =>
       this.start(c.id, stageId),
     );
+  }
+
+  update(_time: number, delta: number) {
+    // Cards walk in place: always "moving" so the bob (and any frame cycle) runs.
+    for (const s of this.walkers) tickWalkBob(s, true, delta);
   }
 
   private start(characterId: string, stageId: string) {

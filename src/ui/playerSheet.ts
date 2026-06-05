@@ -23,10 +23,16 @@ import { dirTextureKey, type FacingSet } from '../systems/facing';
 
 interface CharFrames {
   id: string; // roster character id this art maps to
-  frames: Record<FacingSet, number>; // sheet frame index per facing
+  frames: Record<FacingSet, number>; // sheet frame index per facing (static fallback)
   /** Whether `frames.side` already faces RIGHT (baked `side` must face right, so
    *  a left-facing source is flipped). */
   sideFacesRight: boolean;
+  /** Optional per-facing WALK cycles (sheet frame indices). Present only for
+   *  sheets whose frames form a coherent walk — registered as Phaser anims under
+   *  `${base}-${set}-walk`, which applyFacing() prefers over the static frame.
+   *  Sheets without clean walk frames (the roster girls) omit this and rely on
+   *  the procedural walk-bob instead. */
+  walk?: Partial<Record<FacingSet, number[]>>;
 }
 
 interface SheetDef {
@@ -62,7 +68,15 @@ const SHEETS: SheetDef[] = [
     displayHeight: 56,
     bodyCenter: { x: 0.5, y: 0.6 },
     targets: [
-      { id: 'ronin', frames: { down: 0, up: 3, side: 17 }, sideFacesRight: true },
+      // The goth sheet is laid out as columns = direction, rows = animation
+      // frames, so each direction yields a clean 3-frame walk cycle:
+      //   front = col0 (0,6,12) · back = col3 (3,9,15) · side = col5 (5,11,17)
+      {
+        id: 'ronin',
+        frames: { down: 0, up: 3, side: 17 },
+        sideFacesRight: true,
+        walk: { down: [0, 6, 12], up: [3, 9, 15], side: [5, 11, 17] },
+      },
     ],
   },
 ];
@@ -117,6 +131,38 @@ export function bakePlayerSheets(scene: Phaser.Scene): void {
       bakeFrame(scene, sh, t.frames.up, dirTextureKey(base, 'up'), false);
       bakeFrame(scene, sh, t.frames.side, dirTextureKey(base, 'side'), !t.sideFacesRight);
       scene.game.registry.set(REG(t.id), sh.key);
+    }
+  }
+}
+
+/**
+ * Register per-facing WALK animations for any sheet target that defines `walk`
+ * frames. Keyed `${base}-${set}-walk` so applyFacing() picks them up with zero
+ * logic change (it already prefers an animation over the static frame). Left is
+ * derived from the right-facing `side` cycle via flipX, same as the static path.
+ * Call in `create()` after the sheets have loaded. Safe to call if a sheet is
+ * missing — its target is simply skipped and that class stays on static art.
+ */
+export function registerPlayerAnims(scene: Phaser.Scene): void {
+  const SETS: FacingSet[] = ['down', 'up', 'side'];
+  for (const sh of SHEETS) {
+    if (!scene.textures.exists(sh.key)) continue;
+    for (const t of sh.targets) {
+      if (!t.walk) continue;
+      const base = CHARACTERS.find((c) => c.id === t.id)?.texture;
+      if (!base) continue;
+      for (const set of SETS) {
+        const idxs = t.walk[set];
+        if (!idxs || idxs.length === 0) continue;
+        const key = `${base}-${set}-walk`;
+        if (scene.anims.exists(key)) scene.anims.remove(key);
+        scene.anims.create({
+          key,
+          frames: idxs.map((frame) => ({ key: sh.key, frame })),
+          frameRate: 7,
+          repeat: -1,
+        });
+      }
     }
   }
 }
