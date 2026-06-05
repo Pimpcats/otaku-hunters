@@ -37,10 +37,53 @@
         image-rendering: pixelated;
         touch-action: none;
       }
+      /* Otaku Hunter is a landscape (16:9) game — a portrait phone can only
+         letterbox it into a tiny strip, which looks broken. In portrait we hide
+         the game and ask the player to rotate; landscape fills the screen. */
+      #rotate {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #0b0d1a;
+        color: #fff;
+        text-align: center;
+        padding: 24px;
+      }
+      #rotate .icon {
+        font-size: 56px;
+        animation: rot 2.2s ease-in-out infinite;
+      }
+      #rotate .title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #6ad7ff;
+      }
+      #rotate .sub {
+        font-size: 15px;
+        color: #ff7ae0;
+      }
+      @keyframes rot {
+        0%, 40% { transform: rotate(0deg); }
+        60%, 100% { transform: rotate(-90deg); }
+      }
+      @media (orientation: portrait) {
+        #rotate { display: flex; }
+        #game { visibility: hidden; }
+      }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="rotate">
+      <div class="icon">📱</div>
+      <div class="title">Rotate your device</div>
+      <div class="sub">Otaku Hunter plays in landscape</div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
