@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, TEX } from '../constants';
+import { COLORS, TEX, GAME_WIDTH } from '../constants';
 import { getStage, type ResolvedStage } from '../data/stages';
 import { getCharacter, type CharacterDef } from '../data/characters';
 import type { Word } from '../data/types';
@@ -277,7 +277,7 @@ export class RunScene extends Phaser.Scene {
     }
     this.burst(x, y, ed.archetype.color);
     this.dropGem(x, y, ed.xp);
-    // Maneki-neko (luck): better odds a kill coughs up a word token.
+    // Star Luck (運 luck): better odds a kill coughs up a word token.
     const dropChance = WORD_DROP_CHANCE * this.loadout.stats().luck;
     if (ed.archetype.dropsWord || Math.random() < dropChance) this.dropWord(x, y);
     e.disableBody(true, true);
@@ -290,7 +290,7 @@ export class RunScene extends Phaser.Scene {
     const ed = (eObj as Sprite).getData('edata') as EnemyData | undefined;
     if (!ed) return;
     this.lastHit = this.time.now;
-    // Kotatsu Blanket (armor): flat damage reduction, but a hit always stings ≥1.
+    // Composure (平常心 armor): flat damage reduction, but a hit always stings ≥1.
     const dmg = Math.max(1, ed.contact - this.loadout.stats().armor);
     this.hp -= dmg;
     this.cameras.main.shake(120, 0.006);
@@ -433,6 +433,8 @@ export class RunScene extends Phaser.Scene {
         fontSize: '34px',
         color: '#' + color.toString(16).padStart(6, '0'),
         fontStyle: 'bold',
+        align: 'center',
+        wordWrap: { width: GAME_WIDTH - 80 }, // wrap long names (e.g. the boss) instead of overflowing
       })
       .setOrigin(0.5)
       .setDepth(DEPTH.banner);

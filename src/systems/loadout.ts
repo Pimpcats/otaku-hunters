@@ -9,6 +9,7 @@ import {
   deriveStats,
   type DerivedStats,
   type StatId,
+  type Vocab,
 } from '../data/balance';
 import type { CharacterDef } from '../data/characters';
 
@@ -22,6 +23,7 @@ export interface UpgradeDef {
   statId?: StatId;
   weaponId?: string;
   max: number;
+  vocab?: Vocab; // themed JP label shown on the upgrade card; names double as vocab
   // VS passives that are ported as data but not yet wired into a gameplay system
   // are marked `wired: false` — they're kept out of the live level-up offer pool
   // so we never show a card that does nothing. Flip to true (or remove) once the
@@ -32,31 +34,34 @@ export interface UpgradeDef {
 // The pool. Themed flavour names; numbers all live in balance.ts (ported from
 // the real VS data). Every one of these is still earned through the Japanese
 // level-up drill — these are just the rewards, not a replacement for the lesson.
+// Themed as the fame/otaku arsenal (weapons) + fan-culture accessories
+// (passives). Each carries a JP vocab label so the upgrade screen teaches words.
+// Stat names in parentheses are the themed "Star Power" stat (§2). Numbers all
+// live in balance.ts; every pick is still earned through the Japanese level-up.
 export const UPGRADES: UpgradeDef[] = [
-  { id: 'w_pocky', name: 'Pocky Shooter', desc: 'More damage, projectiles & pierce', kind: 'weapon', weaponId: 'pocky', max: WEAPONS.pocky.maxLevel },
-  { id: 'w_aura', name: 'Otaku Aura', desc: 'A pulsing ring that hits all around you', kind: 'weapon', weaponId: 'aura', max: WEAPONS.aura.maxLevel },
-  { id: 'w_shuriken', name: 'Shuriken Storm', desc: 'A fast storm of short-range piercing stars', kind: 'weapon', weaponId: 'shuriken', max: WEAPONS.shuriken.maxLevel },
-  { id: 'p_might', name: 'Energy Drink', desc: '+5% damage', kind: 'passive', statId: 'might', max: PASSIVES.might.max },
-  { id: 'p_haste', name: 'Turbo Controller', desc: '+2.5% attack speed', kind: 'passive', statId: 'haste', max: PASSIVES.haste.max },
-  { id: 'p_amount', name: 'Spare Batteries', desc: '+1 projectile (all weapons)', kind: 'passive', statId: 'amount', max: PASSIVES.amount.max },
-  { id: 'p_area', name: 'Big-Screen Mode', desc: '+5% attack size', kind: 'passive', statId: 'area', max: PASSIVES.area.max },
-  { id: 'p_projSpeed', name: 'Overclock', desc: '+10% projectile speed', kind: 'passive', statId: 'projSpeed', max: PASSIVES.projSpeed.max },
-  { id: 'p_moveSpeed', name: 'Hi-Top Sneakers', desc: '+5% move speed', kind: 'passive', statId: 'moveSpeed', max: PASSIVES.moveSpeed.max },
-  { id: 'p_maxHp', name: 'Energy Bar', desc: '+10 max HP (and heal)', kind: 'passive', statId: 'maxHp', max: PASSIVES.maxHp.max },
-  { id: 'p_regen', name: 'Healing Charm', desc: '+0.1 HP/sec', kind: 'passive', statId: 'regen', max: PASSIVES.regen.max },
-  { id: 'p_magnet', name: "Collector's Magnet", desc: '+25% pickup range', kind: 'passive', statId: 'magnet', max: PASSIVES.magnet.max },
+  { id: 'w_pocky', name: 'Okashi Barrage', desc: 'More damage, projectiles & pierce', kind: 'weapon', weaponId: 'pocky', max: WEAPONS.pocky.maxLevel, vocab: { jp: 'お菓子', romaji: 'Okashi', meaning: 'sweets / snacks' } },
+  { id: 'w_aura', name: 'Ōen Wave', desc: 'A pulsing cheer that hits all around you', kind: 'weapon', weaponId: 'aura', max: WEAPONS.aura.maxLevel, vocab: { jp: '応援', romaji: 'Ōen', meaning: 'cheer / support' } },
+  { id: 'w_shuriken', name: 'Shuriken Storm', desc: 'A fast storm of short-range piercing stars', kind: 'weapon', weaponId: 'shuriken', max: WEAPONS.shuriken.maxLevel, vocab: { jp: '手裏剣', romaji: 'Shuriken', meaning: 'throwing star' } },
+  { id: 'p_might', name: 'Oshi', desc: '+5% Charisma (damage)', kind: 'passive', statId: 'might', max: PASSIVES.might.max, vocab: { jp: '推し', romaji: 'Oshi', meaning: "one's favorite" } },
+  { id: 'p_haste', name: 'Tempo', desc: '+2.5% Tempo (attack speed)', kind: 'passive', statId: 'haste', max: PASSIVES.haste.max, vocab: { jp: 'テンポ', romaji: 'Tenpo', meaning: 'tempo' } },
+  { id: 'p_amount', name: 'Dōjinshi', desc: '+1 Encore (projectile, all weapons)', kind: 'passive', statId: 'amount', max: PASSIVES.amount.max, vocab: { jp: '同人誌', romaji: 'Dōjinshi', meaning: 'self-published work' } },
+  { id: 'p_area', name: 'Presence', desc: '+5% Presence (attack size)', kind: 'passive', statId: 'area', max: PASSIVES.area.max, vocab: { jp: '存在感', romaji: 'Sonzaikan', meaning: 'presence' } },
+  { id: 'p_projSpeed', name: 'Hype', desc: '+10% Hype (projectile speed)', kind: 'passive', statId: 'projSpeed', max: PASSIVES.projSpeed.max, vocab: { jp: '勢い', romaji: 'Ikioi', meaning: 'momentum' } },
+  { id: 'p_moveSpeed', name: 'Sneakers', desc: '+5% Footwork (move speed)', kind: 'passive', statId: 'moveSpeed', max: PASSIVES.moveSpeed.max, vocab: { jp: 'スニーカー', romaji: 'Sunīkā', meaning: 'sneakers' } },
+  { id: 'p_maxHp', name: 'Energy Drink', desc: '+10 Stamina (max HP, and heal)', kind: 'passive', statId: 'maxHp', max: PASSIVES.maxHp.max, vocab: { jp: '栄養ドリンク', romaji: 'Eiyō-dorinku', meaning: 'energy drink' } },
+  { id: 'p_regen', name: 'Second Wind', desc: '+0.1 Recovery (HP/sec)', kind: 'passive', statId: 'regen', max: PASSIVES.regen.max, vocab: { jp: '回復', romaji: 'Kaifuku', meaning: 'recovery' } },
+  { id: 'p_magnet', name: 'Magnetism', desc: '+25% Fascination (pickup range)', kind: 'passive', statId: 'magnet', max: PASSIVES.magnet.max, vocab: { jp: 'カリスマ', romaji: 'Karisuma', meaning: 'charisma' } },
 
-  // ── Ported from VS, now wired into gameplay (RunScene consumes each). Names
-  //    keep the Japanese-study theme.
-  { id: 'p_armor', name: 'Kotatsu Blanket', desc: '−1 damage taken', kind: 'passive', statId: 'armor', max: PASSIVES.armor.max },
-  { id: 'p_growth', name: 'Study Streak', desc: '+3% XP gain', kind: 'passive', statId: 'growth', max: PASSIVES.growth.max },
-  { id: 'p_luck', name: 'Maneki-neko', desc: '+10% word-token drops', kind: 'passive', statId: 'luck', max: PASSIVES.luck.max },
-  { id: 'p_curse', name: 'Cursed Manga', desc: '+10% enemy strength & XP', kind: 'passive', statId: 'curse', max: PASSIVES.curse.max },
-  { id: 'p_revival', name: 'Extra Life', desc: 'Revive once on death', kind: 'passive', statId: 'revival', max: PASSIVES.revival.max },
+  // ── Ported from VS, wired into gameplay (RunScene consumes each). ──
+  { id: 'p_armor', name: 'Composure', desc: '−1 damage taken (Calm)', kind: 'passive', statId: 'armor', max: PASSIVES.armor.max, vocab: { jp: '平常心', romaji: 'Heijōshin', meaning: 'composure' } },
+  { id: 'p_growth', name: 'Fame', desc: '+3% Fame Growth (XP gain)', kind: 'passive', statId: 'growth', max: PASSIVES.growth.max, vocab: { jp: '名声', romaji: 'Meisei', meaning: 'fame' } },
+  { id: 'p_luck', name: 'Star Luck', desc: '+10% word-token drops', kind: 'passive', statId: 'luck', max: PASSIVES.luck.max, vocab: { jp: '運', romaji: 'Un', meaning: 'luck' } },
+  { id: 'p_curse', name: 'Cursed Merch', desc: '+10% enemy strength & XP', kind: 'passive', statId: 'curse', max: PASSIVES.curse.max, vocab: { jp: '呪い', romaji: 'Noroi', meaning: 'curse' } },
+  { id: 'p_revival', name: 'Extra Life', desc: 'Revive once on death', kind: 'passive', statId: 'revival', max: PASSIVES.revival.max, vocab: { jp: '復活', romaji: 'Fukkatsu', meaning: 'revival' } },
 
-  // Still inert — no economy/shop exists for gold yet, so this stays out of the
-  // offer pool (no dead card). Wire it if/when a gold sink lands.
-  { id: 'p_greed', name: 'Gachapon Luck', desc: '+10% gold gain', kind: 'passive', statId: 'greed', max: PASSIVES.greed.max, wired: false },
+  // Still inert — no economy/shop exists for coins yet, so this stays out of the
+  // offer pool (no dead card). Wire it if/when a coin sink lands.
+  { id: 'p_greed', name: 'Merch Sales', desc: '+10% coin gain', kind: 'passive', statId: 'greed', max: PASSIVES.greed.max, wired: false, vocab: { jp: '商売', romaji: 'Shōbai', meaning: 'business' } },
 ];
 
 export const HEAL_UPGRADE: UpgradeDef = {
@@ -65,6 +70,7 @@ export const HEAL_UPGRADE: UpgradeDef = {
   desc: 'Restore some HP',
   kind: 'heal',
   max: Infinity,
+  vocab: { jp: '手当て', romaji: 'Teate', meaning: 'treatment' },
 };
 
 const BY_ID = new Map(UPGRADES.map((u) => [u.id, u]));
@@ -168,6 +174,7 @@ export class PlayerLoadout {
         kind: 'weapon',
         weaponId: def.evolvesTo,
         max: evo.maxLevel,
+        vocab: evo.vocab,
       });
     }
     return out;

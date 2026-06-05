@@ -487,6 +487,21 @@ export class LevelUpScene extends Phaser.Scene {
     const lvl = this.add.text(0, h / 2 - 26, levelStr, { fontFamily: 'system-ui', fontSize: '16px', color: '#' + accent.toString(16).padStart(6, '0'), fontStyle: 'bold' }).setOrigin(0.5);
     container.add([bg, kind, name, desc, lvl]);
 
+    // Vocab line — names double as Japanese lessons (the learning hook).
+    if (up.vocab) {
+      const v = up.vocab;
+      const vocab = this.add
+        .text(0, -h / 2 + 88, `${v.jp}  ${v.romaji} — ${v.meaning}`, {
+          fontFamily: 'system-ui',
+          fontSize: '13px',
+          color: '#8aa0c8',
+          align: 'center',
+          wordWrap: { width: w - 20 },
+        })
+        .setOrigin(0.5);
+      container.add(vocab);
+    }
+
     bg.on('pointerover', () => container.setScale(1.04));
     bg.on('pointerout', () => container.setScale(1));
     bg.on('pointerup', () => this.pick(up, grade, stacks));

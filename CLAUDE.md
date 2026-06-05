@@ -54,6 +54,13 @@ Pages (pimpcats.github.io/otaku-hunters). Stays 2D — see §3.
   pickups, and the floor accept CC0 art dropped into `public/kenney/` with no code
   change; missing files fall back to procedural/placeholder art. See
   `public/kenney/README.md` + `CREDITS.md`.
+- ✅ **Themed names + JP-vocab layer** (`data/balance.ts`, `systems/loadout.ts`):
+  the otaku/fame skin with a `Vocab` ({jp, romaji, meaning}) label on every weapon,
+  passive, the boss, enemies (`ENEMY_VOCAB`), and pickups (`PICKUP_VOCAB`). The
+  level-up upgrade cards now render the JP word + meaning, so picking an upgrade
+  teaches vocab. Mechanics/numbers unchanged. Bigger mechanical additions (new
+  weapons, discrete passive items, Gacha-capsule evolution pickup, behavior-AI
+  enemy roster) are staged for next-phase per §5.
 - **Placeholder art**: roster sheets wired as the player (`ui/playerSheet.ts`); flat
   front art, doesn't yet match the ¾ camera — expected.
 

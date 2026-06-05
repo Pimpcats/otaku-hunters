@@ -140,9 +140,18 @@ export interface WeaponLevelStats {
   range: number; // targeting + travel distance in px (before ProjSpeed)
 }
 
+/** A vocabulary label so names double as Japanese lessons.
+ *  Format mirrors the rest of the game: 日本語 Rōmaji — "meaning". */
+export interface Vocab {
+  jp: string;
+  romaji: string;
+  meaning: string;
+}
+
 export interface WeaponDef {
   id: string;
   name: string;
+  vocab?: Vocab; // themed JP label shown in the UI; names double as vocab
   kind: 'projectile' | 'aura';
   maxLevel: number;
   level: (L: number) => WeaponLevelStats;
@@ -164,7 +173,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // Starter (Kohai): fires the nearest enemy. Reliable single-target → light pierce.
   pocky: {
     id: 'pocky',
-    name: 'Pocky Shooter',
+    name: 'Okashi Barrage',
+    vocab: { jp: 'お菓子', romaji: 'Okashi', meaning: 'sweets / snacks' },
     kind: 'projectile',
     maxLevel: 8,
     evolvesTo: 'pocky_evo',
@@ -184,7 +194,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // Sensei: a pulsing ring that hits everything around you (crowd control).
   aura: {
     id: 'aura',
-    name: 'Otaku Aura',
+    name: 'Ōen Wave',
+    vocab: { jp: '応援', romaji: 'Ōen', meaning: 'cheer / support' },
     kind: 'aura',
     maxLevel: 8,
     evolvesTo: 'aura_evo',
@@ -203,6 +214,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   shuriken: {
     id: 'shuriken',
     name: 'Shuriken Storm',
+    vocab: { jp: '手裏剣', romaji: 'Shuriken', meaning: 'throwing star' },
     kind: 'projectile',
     maxLevel: 8,
     evolvesTo: 'shuriken_evo',
@@ -229,7 +241,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   //    mid-game trivial.
   pocky_evo: {
     id: 'pocky_evo',
-    name: 'Pocky Overdrive',
+    name: 'Tabehōdai',
+    vocab: { jp: '食べ放題', romaji: 'Tabehōdai', meaning: 'all-you-can-eat' },
     kind: 'projectile',
     maxLevel: 1,
     projTexture: TEX.pocky,
@@ -239,7 +252,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   aura_evo: {
     id: 'aura_evo',
-    name: 'Cosmic Otaku Aura',
+    name: 'Tandoku Live',
+    vocab: { jp: '単独ライブ', romaji: 'Tandoku Raibu', meaning: 'solo concert' },
     kind: 'aura',
     maxLevel: 1,
     tint: 0xff7ae0,
@@ -247,7 +261,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   shuriken_evo: {
     id: 'shuriken_evo',
-    name: 'Thousand Cuts',
+    name: 'Senbon Storm',
+    vocab: { jp: '千本', romaji: 'Senbon', meaning: 'a thousand' },
     kind: 'projectile',
     maxLevel: 1,
     projTexture: TEX.shuriken,
@@ -273,6 +288,26 @@ export interface EnemyBase {
 export const ENEMY_BASE: Record<string, EnemyBase> = {
   RushFan: { hp: 6, contact: 8, speed: 70, xp: 1 },
   MerchMule: { hp: 14, contact: 6, speed: 56, xp: 3 },
+};
+
+// Themed bestiary labels — the superfan archetypes named so they teach vocab.
+// Data only for now (surfaced in HUD/bestiary as that UI lands); the behavior-AI
+// roster (Anxious One, Camera Gremlin, …) is next-phase. JP names per the framework.
+export const ENEMY_VOCAB: Record<string, { name: string; vocab: Vocab }> = {
+  RushFan: { name: 'Fan', vocab: { jp: 'ファン', romaji: 'Fan', meaning: 'fan' } },
+  MerchMule: { name: 'Scalper', vocab: { jp: '転売ヤー', romaji: 'Tenbaiyā', meaning: 'scalper / reseller' } },
+  ultimate_collector: {
+    name: 'The Ultimate Collector',
+    vocab: { jp: '究極コレクター', romaji: 'Kyūkyoku Korekutā', meaning: 'ultimate collector' },
+  },
+};
+
+// Themed pickup / currency labels (§8). Data for HUD/flavor + the learning layer.
+export const PICKUP_VOCAB: Record<string, Vocab> = {
+  xp: { jp: 'ハート', romaji: 'Hāto', meaning: 'heart — fan-love' },
+  word: { jp: '単語', romaji: 'Tango', meaning: 'vocabulary word' },
+  coin: { jp: '円', romaji: 'En', meaning: 'yen' },
+  gacha: { jp: 'ガチャ', romaji: 'Gacha', meaning: 'capsule-toy / loot draw' },
 };
 
 // Time multipliers (t in seconds, m in minutes). Front-loaded so the pressure
@@ -338,7 +373,7 @@ export const NOPE_HEAL = 12; // hp, so a wrong answer still feels rewarding
 // ── Boss ─────────────────────────────────────────────────────────────────────
 export const BOSS = {
   id: 'ultimate_collector',
-  name: 'The Ultimate Collector',
+  name: '究極コレクター — The Ultimate Collector',
   hp: 75000, // tuned so a 20-min build clears it in ~30–45s (see sim)
   contact: 28,
   speed: 64,
