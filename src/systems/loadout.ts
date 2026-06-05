@@ -152,22 +152,30 @@ export class PlayerLoadout {
     return { maxHpGain: 0 };
   }
 
-  /** Any weapon that is maxed AND whose required passive is maxed can evolve,
-   *  once the player has reached EVOLVE_MIN_LEVEL. Surfaced as synthetic
-   *  `evo_<baseId>` upgrades (not in the static pool). */
-  private availableEvolutions(playerLevel: number): UpgradeDef[] {
-    if (playerLevel < EVOLVE_MIN_LEVEL) return [];
-    const out: UpgradeDef[] = [];
+  /** Base weapon ids that can evolve RIGHT NOW: weapon maxed AND its required
+   *  passive maxed AND the evolved form not already owned. No player-level gate —
+   *  this is what the Gacha capsule queries (the capsule is itself the trigger). */
+  eligibleEvolutions(): string[] {
+    const out: string[] = [];
     for (const id of this.ownedWeaponIds()) {
       const def = WEAPONS[id];
       if (!def?.evolvesTo || !def.evolveRequires) continue;
       if (this.weaponLevel(id) < def.maxLevel) continue;
-      // VS rule: weapon maxed AND its required passive maxed → a true late-game
-      // capstone, not an early freebie.
       if ((this.statLevels[def.evolveRequires] ?? 0) < PASSIVES[def.evolveRequires].max) continue;
       if (this.ownsWeapon(def.evolvesTo)) continue;
-      const evo = WEAPONS[def.evolvesTo];
-      out.push({
+      out.push(id);
+    }
+    return out;
+  }
+
+  /** Synthetic `evo_<baseId>` upgrades for the level-up DRAFT (gated by player
+   *  level). The capsule path uses `eligibleEvolutions()` directly, ungated. */
+  private availableEvolutions(playerLevel: number): UpgradeDef[] {
+    if (playerLevel < EVOLVE_MIN_LEVEL) return [];
+    return this.eligibleEvolutions().map((id) => {
+      const def = WEAPONS[id];
+      const evo = WEAPONS[def.evolvesTo!];
+      return {
         id: `evo_${id}`,
         name: `EVOLVE → ${evo.name}`,
         desc: `${def.name} reaches its final form`,
@@ -175,9 +183,8 @@ export class PlayerLoadout {
         weaponId: def.evolvesTo,
         max: evo.maxLevel,
         vocab: evo.vocab,
-      });
-    }
-    return out;
+      } as UpgradeDef;
+    });
   }
 
   /** Offer `count` distinct upgrades; available evolutions take priority, then

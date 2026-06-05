@@ -162,6 +162,15 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     url: 'https://kenney.nl/assets/generic-items',
     note: 'Word-token pickup (scroll/card/tile). ~16x16px.',
   },
+  {
+    kind: 'single',
+    id: 'gacha',
+    file: 'gacha.png',
+    key: TEX.gacha,
+    pack: 'Generic Items / Board Game Icons',
+    note: 'ガチャ evolution capsule pickup. Gachapon-ball / chest, coloured. ~16-18px.',
+    url: 'https://kenney.nl/assets/generic-items',
+  },
 ];
 
 /** Loader key a slot's file loads onto (final key for singles, a temp src key

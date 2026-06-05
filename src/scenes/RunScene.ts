@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, TEX, GAME_WIDTH } from '../constants';
+import { COLORS, TEX, GAME_WIDTH, GAME_HEIGHT } from '../constants';
 import { getStage, type ResolvedStage } from '../data/stages';
 import { getCharacter, type CharacterDef } from '../data/characters';
 import type { Word } from '../data/types';
@@ -12,6 +12,8 @@ import {
   BOSS,
   BOSS_TIME,
   BEHAVIOR,
+  GACHA,
+  WEAPONS,
   type Grade,
 } from '../data/balance';
 import { InputController } from '../systems/input';
@@ -53,6 +55,7 @@ export class RunScene extends Phaser.Scene {
   private enemies!: Phaser.Physics.Arcade.Group;
   private gems!: Phaser.Physics.Arcade.Group;
   private wordTokens!: Phaser.Physics.Arcade.Group;
+  private gacha!: Phaser.Physics.Arcade.Group; // ガチャ evolution capsules
   private weapon!: WeaponManager;
   private spawner!: Spawner;
   private controls!: InputController;
@@ -79,6 +82,10 @@ export class RunScene extends Phaser.Scene {
   private boss: Sprite | null = null;
   private revivesUsed = 0; // Extra Life passives consumed this run
   private playerSlow = 1; // Glomper latch debuff on move speed (1 = none)
+  private revealing = false; // a Gacha capsule reveal is on screen (freezes the run)
+  private gachaSeeded = false; // the one guaranteed early capsule has dropped
+  private pendingGachaXp = 0; // fallback XP to grant after a reveal closes
+  private gachaLayer?: Phaser.GameObjects.Container; // reveal overlay
 
   private collectedWords = new Map<string, Word>();
   private collectedSet = new Set<string>();
@@ -104,6 +111,9 @@ export class RunScene extends Phaser.Scene {
     this.boss = null;
     this.revivesUsed = 0;
     this.playerSlow = 1;
+    this.revealing = false;
+    this.gachaSeeded = false;
+    this.pendingGachaXp = 0;
     this.collectedWords = new Map();
     this.collectedSet = new Set();
     this.recentSids = [];
@@ -146,6 +156,7 @@ export class RunScene extends Phaser.Scene {
     this.enemies = this.physics.add.group();
     this.gems = this.physics.add.group();
     this.wordTokens = this.physics.add.group();
+    this.gacha = this.physics.add.group();
 
     this.weapon = new WeaponManager(this, this.loadout);
     this.spawner = new Spawner((key, x, y) => this.spawnEnemy(key, x, y));
@@ -156,6 +167,7 @@ export class RunScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, this.onPlayerHit, undefined, this);
     this.physics.add.overlap(this.player, this.gems, this.onCollectGem, undefined, this);
     this.physics.add.overlap(this.player, this.wordTokens, this.onCollectWord, undefined, this);
+    this.physics.add.overlap(this.player, this.gacha, this.onCollectGacha, undefined, this);
 
     // Floating HP bar above the player (world-space).
     this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(DEPTH.hpBar);
@@ -170,7 +182,7 @@ export class RunScene extends Phaser.Scene {
   }
 
   private openPause() {
-    if (this.dead || this.won || this.leveling) return;
+    if (this.dead || this.won || this.leveling || this.revealing) return;
     this.scene.launch('Pause');
     this.scene.pause();
   }
@@ -306,8 +318,10 @@ export class RunScene extends Phaser.Scene {
     this.burst(x, y, ed.archetype.color);
     this.dropGem(x, y, ed.xp);
     // Star Luck (運 luck): better odds a kill coughs up a word token.
-    const dropChance = WORD_DROP_CHANCE * this.loadout.stats().luck;
-    if (ed.archetype.dropsWord || Math.random() < dropChance) this.dropWord(x, y);
+    const luck = this.loadout.stats().luck;
+    if (ed.archetype.dropsWord || Math.random() < WORD_DROP_CHANCE * luck) this.dropWord(x, y);
+    // 「ガチャ」capsule: rare per-kill drop (also luck-scaled).
+    if (Math.random() < GACHA.killChance * luck) this.dropGacha(x, y);
     e.disableBody(true, true);
     this.enemies.killAndHide(e);
   }
@@ -411,6 +425,97 @@ export class RunScene extends Phaser.Scene {
     const useful = pool.filter((w) => ['n', 'v', 'adj', 'adv'].includes(w.pos));
     const src = useful.length > 0 && Math.random() < 0.8 ? useful : pool;
     return src[Phaser.Math.Between(0, src.length - 1)];
+  }
+
+  // ── ガチャ Gacha capsule (evolution payoff) ─────────────────────────────────
+  private dropGacha(x: number, y: number) {
+    const c = this.gacha.get(x, y, TEX.gacha) as Sprite | null;
+    if (!c) return;
+    c.enableBody(true, x, y, true, true);
+    c.setDepth(34);
+    c.setScale(1.3);
+    c.setAngle(0);
+    c.setAlpha(1);
+    this.tweens.add({ targets: c, angle: 360, duration: 2200, repeat: -1 }); // spin (no position fight with the magnet)
+    this.tweens.add({ targets: c, scale: 1.55, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+  }
+
+  private onCollectGacha: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback = (_p, cObj) => {
+    const c = cObj as Sprite;
+    if (!c.active || this.revealing || this.leveling || this.dead || this.won) return;
+    this.tweens.killTweensOf(c);
+    c.disableBody(true, true);
+    this.gacha.killAndHide(c);
+    this.openGacha();
+  };
+
+  /** Free reveal: claim an evolution if one is eligible, else a "never nothing"
+   *  consolation. Always shows the evolved form's JP name (passive vocab). */
+  private openGacha() {
+    this.revealing = true;
+    this.physics.pause();
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2;
+    const layer = this.add.container(0, 0).setScrollFactor(0).setDepth(DEPTH.overlay);
+    layer.add(this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05030f, 0.74).setOrigin(0, 0));
+    const capsule = this.add.image(cx, cy - 36, TEX.gacha).setScale(5);
+    this.tweens.add({ targets: capsule, angle: 360, duration: 1200, repeat: -1 });
+    this.tweens.add({ targets: capsule, scaleX: 5.6, scaleY: 4.6, duration: 360, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    layer.add(capsule);
+
+    const eligible = this.loadout.eligibleEvolutions();
+    let title: string;
+    let sub: string;
+    let vocabLine = '';
+    if (eligible.length > 0) {
+      const evo = WEAPONS[WEAPONS[eligible[0]].evolvesTo!];
+      this.loadout.apply(`evo_${eligible[0]}`, 1); // stacks unused for evolutions
+      title = 'ガチャ ✦ EVOLVED!';
+      sub = evo.name;
+      if (evo.vocab) {
+        vocabLine = `${evo.vocab.jp}  ${evo.vocab.romaji} — ${evo.vocab.meaning}`;
+        speakJa(evo.vocab.jp);
+      }
+      this.cameras.main.flash(240, 255, 225, 150);
+    } else {
+      // "never nothing": full heal + bonus XP (the XP can itself trigger a gated level-up).
+      this.hp = this.maxHp;
+      this.pendingGachaXp = Math.round(this.xpToNext * GACHA.fallbackXpFrac);
+      title = 'ガチャ ✦ Bonus!';
+      sub = `Full heal  +  ${this.pendingGachaXp} XP`;
+      vocabLine = 'ガチャ  Gacha — capsule-toy';
+      speakJa('ガチャ');
+    }
+    const line = (y: number, text: string, size: number, color: string, italic = false) =>
+      layer.add(
+        this.add
+          .text(cx, y, text, { fontFamily: 'system-ui', fontSize: `${size}px`, color, fontStyle: italic ? 'italic' : 'bold', align: 'center', wordWrap: { width: GAME_WIDTH - 80 } })
+          .setOrigin(0.5),
+      );
+    line(cy + 66, title, 30, '#ffe08a');
+    line(cy + 108, sub, 24, '#ffffff');
+    if (vocabLine) line(cy + 140, vocabLine, 15, '#8aa0c8', true);
+    line(GAME_HEIGHT - 54, 'tap to continue', 15, '#8890b5');
+    this.gachaLayer = layer;
+
+    // Arm dismissal after a beat so the tap that grabbed the capsule can't auto-close it.
+    this.time.delayedCall(600, () => {
+      if (this.revealing) this.input.once(Phaser.Input.Events.POINTER_DOWN, () => this.closeGacha());
+    });
+    this.time.delayedCall(4500, () => this.closeGacha()); // safety auto-close
+  }
+
+  private closeGacha() {
+    if (!this.revealing) return;
+    this.revealing = false;
+    this.gachaLayer?.destroy();
+    this.gachaLayer = undefined;
+    this.physics.resume();
+    if (this.pendingGachaXp > 0) {
+      this.xp += this.pendingGachaXp;
+      this.pendingGachaXp = 0;
+      this.checkLevelUp();
+    }
   }
 
   private burst(x: number, y: number, color: number) {
@@ -557,7 +662,7 @@ export class RunScene extends Phaser.Scene {
 
   // ── main loop ────────────────────────────────────────────────────────────────
   update(time: number, delta: number) {
-    if (this.dead || this.won) return;
+    if (this.dead || this.won || this.revealing) return;
     const dt = delta / 1000;
     this.elapsed += dt;
     const stats = this.loadout.stats();
@@ -607,8 +712,9 @@ export class RunScene extends Phaser.Scene {
     // weapons
     this.weapon.update(time, this.player.x, this.player.y, this.enemies, this.dealDamage);
 
-    // XP magnet (scaled by Collector's Magnet)
+    // XP magnet (scaled by Collector's Magnet); capsules pull from a touch farther.
     this.magnetize(this.gems, PLAYER_BASE.pickupRadius * stats.magnet, 280);
+    this.magnetize(this.gacha, PLAYER_BASE.pickupRadius * stats.magnet * 1.8, 240);
 
     // Word tokens fade as they decay (grab them fast for full XP).
     for (const obj of this.wordTokens.getChildren()) {
@@ -633,6 +739,11 @@ export class RunScene extends Phaser.Scene {
 
     // spawning + boss
     if (!this.bossSpawned && this.elapsed >= BOSS_TIME) this.spawnBoss();
+    // One guaranteed early capsule so the evolution payoff is always discovered.
+    if (!this.gachaSeeded && this.elapsed >= GACHA.firstDropTime) {
+      this.gachaSeeded = true;
+      this.dropGacha(this.player.x + 70, this.player.y);
+    }
     this.spawner.update(delta, this.elapsed, this.player.x, this.player.y, this.countActive(this.enemies));
 
     this.hud.update({

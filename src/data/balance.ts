@@ -274,8 +274,19 @@ export const WEAPONS: Record<string, WeaponDef> = {
 };
 
 // Evolutions only unlock once the player is deep enough into the run — keeps
-// the spike a late-game payoff, not an early build-defining freebie.
+// the spike a late-game payoff, not an early build-defining freebie. (This gates
+// the level-up DRAFT path; the Gacha capsule below is its own, ungated trigger.)
 export const EVOLVE_MIN_LEVEL = 40;
+
+// ── 「ガチャ」Gacha capsule (the themed evolution chest / signature payoff) ─────
+// A capsule drops occasionally from kills (and one guaranteed early so it's seen).
+// Collecting it claims an evolution if one is mechanically eligible; otherwise it
+// pays out a "never nothing" consolation so the pull always feels good.
+export const GACHA = {
+  killChance: 0.006, // base per-kill drop chance (× Star Luck)
+  firstDropTime: 180, // seconds → one guaranteed capsule so the payoff is seen
+  fallbackXpFrac: 0.5, // no evolution to claim → full heal + this fraction of the next level as XP
+};
 
 // ── Enemies: base stats × time multipliers ───────────────────────────────────
 export interface EnemyBase {
