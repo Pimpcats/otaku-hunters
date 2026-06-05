@@ -5,39 +5,197 @@ import { RENDER, DEPTH } from '../data/render';
 // Layers 3 + 4: the tilted ground plane and parallax background.
 //
 // Everything here is drawn in SCREEN space (scrollFactor 0) and scrolled by the
-// camera, so the world/gameplay positions are never touched — entities stay where
-// physics put them; only the floor *reads* as a receding, tilted plane. This is
-// the Hades trick: tilt the ground, keep the sprites upright billboards.
+// camera, so world/gameplay positions are never touched — entities stay where
+// physics put them; only the floor *reads* as a receding, tilted plane (Hades
+// trick: tilt the ground, keep sprites upright billboards).
 //
 // `groundTilt` blends the floor between two mappings:
 //   • tilt 0 → an even, flat grid that scrolls 1:1 with the camera (today's look).
 //   • tilt 1 → a strong perspective recession toward a horizon.
-// So the dial goes continuously from flat top-down to dramatic, and every value in
-// between is valid — exactly the flat→tilted comparison the brief asks for.
 //
-// Cost: a couple of gradient rects + ~30 lines redrawn per frame in one Graphics.
-// Negligible next to the swarm; holds frame rate trivially.
+// The floor can render two ways behind `RENDER.floorTexture`:
+//   • a real TILING TEXTURE on a Mesh whose vertices sit at the exact rowY screen
+//     positions (so its recession is identical to the grid), UVs = world coords
+//     scrolled by the camera, per-vertex tinted by the floor palette; or
+//   • the original WIREFRAME grid lines, for A/B comparison.
+//
+// Cost: the textured floor is one batched Mesh (~one draw call, ~850 verts whose
+// UVs we recompute per frame — trivial). The wireframe is ~30 lines + 2 gradient
+// rects. Both hold frame rate with a full swarm.
+
+export const FLOOR_TEXTURE_KEY = 'floor_tex';
 
 const HORIZON_FULL = 0.15; // horizon screen-y fraction at tilt = 1
 const PERSP = 5; // perspective compression strength at tilt = 1
+const COLS = 18; // mesh columns across the screen
+const MAX_SPREAD = 14; // clamp horizontal tile compression near the horizon
 
 export class Backdrop {
   private g: Phaser.GameObjects.Graphics;
   private parallax: Phaser.GameObjects.Graphics;
 
+  // Textured-floor mesh (only when RENDER.floorTexture and the texture loaded).
+  private floor?: Phaser.GameObjects.Mesh;
+  private rows: number[] = []; // world depth d at each mesh row
+  private spread: number[] = []; // horizontal tile compression at each row
+  private sx: number[] = []; // screen x at each mesh column (bottom edge)
+  private cols = COLS;
+
   constructor(private scene: Phaser.Scene) {
-    // Ground gradient + grid (opaque base).
     this.g = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.ground);
-    // Parallax skyline sits in the back-wall band ABOVE the opaque floor fill but
-    // below the shadows/entities, so the silhouettes actually show through.
     this.parallax = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.grid);
+    if (RENDER.floorTexture && scene.textures.exists(FLOOR_TEXTURE_KEY)) {
+      this.buildFloorMesh();
+    }
   }
 
   /** Screen y of a floor line `d` world-px back from the near (bottom) edge. */
   private rowY(d: number, tilt: number, floorTop: number): number {
     const flat = H - d; // 1:1 — even spacing
-    const persp = floorTop + (H - floorTop) / (1 + (PERSP * tilt) * (d / RENDER.gridSize));
+    const persp = floorTop + (H - floorTop) / (1 + PERSP * tilt * (d / RENDER.gridSize));
     return Phaser.Math.Linear(flat, persp, tilt);
+  }
+
+  // ── Textured floor (Mesh) ──────────────────────────────────────────────────
+  private buildFloorMesh(): void {
+    const tilt = Phaser.Math.Clamp(RENDER.groundTilt, 0, 1);
+    const floorTop = Phaser.Math.Linear(0, H * HORIZON_FULL, tilt);
+    const tileWorld = RENDER.floorTileWorld;
+
+    // Find how far back (world px) the floor recedes before reaching the horizon.
+    let dMax = H;
+    {
+      let lo = 0;
+      let hi = 40000;
+      for (let k = 0; k < 40; k++) {
+        const mid = (lo + hi) / 2;
+        if (this.rowY(mid, tilt, floorTop) > floorTop + 1) lo = mid;
+        else hi = mid;
+      }
+      dMax = lo;
+    }
+
+    // Rows uniform in world depth → screen rows bunch toward the horizon (via rowY).
+    const R = 56;
+    this.rows = [];
+    this.spread = [];
+    const baseStep = this.rowY(0, tilt, floorTop) - this.rowY(tileWorld, tilt, floorTop); // ≈ tileWorld at the near edge
+    for (let j = 0; j <= R; j++) {
+      const d = (j / R) * dMax;
+      this.rows.push(d);
+      // Horizontal compression tied to the SAME rowY mapping (keeps tiles square-ish):
+      // as a world tile's on-screen depth shrinks toward the horizon, tiles narrow too.
+      const dRow = Math.max(0.001, this.rowY(d, tilt, floorTop) - this.rowY(d + tileWorld, tilt, floorTop));
+      this.spread.push(Phaser.Math.Clamp(baseStep / dRow, 1, MAX_SPREAD));
+    }
+
+    const C = this.cols;
+    this.sx = [];
+    for (let i = 0; i <= C; i++) this.sx.push((i / C) * W);
+
+    // Build geometry. Vertices in MODEL space; setOrtho maps [-1,1] → full screen.
+    const verts: number[] = [];
+    const uvs: number[] = [];
+    const colors: number[] = [];
+    const alphas: number[] = [];
+    // Phaser projects mesh model coords by the FULL renderer width/height (so model
+    // ±0.5 spans the screen, not ±1), with the mesh centred at (W/2, H/2).
+    const toModelX = (px: number) => px / W - 0.5;
+    const toModelY = (py: number) => 0.5 - py / H;
+    for (let j = 0; j <= R; j++) {
+      const y = this.rowY(this.rows[j], tilt, floorTop);
+      const fade = Phaser.Math.Clamp((y - floorTop) / (H - floorTop), 0, 1); // 1 near, 0 horizon
+      const col = lerpColor(RENDER.floorFar, RENDER.floorNear, fade); // palette tint by depth
+      // Keep the floor opaque across most of its depth; only fade the tiles into
+      // the gradient in the top band near the horizon (distance haze, and it hides
+      // the worst far-distance minification).
+      const distFromHorizon = (y - floorTop) / (H - floorTop); // 0 at horizon, 1 near
+      const alpha = Phaser.Math.Clamp(distFromHorizon / 0.08, 0, 1); // fade only the top sliver
+      for (let i = 0; i <= C; i++) {
+        verts.push(toModelX(this.sx[i]), toModelY(y));
+        uvs.push(0, 0); // real UVs set per-frame in updateFloorMesh
+        colors.push(col);
+        alphas.push(alpha);
+      }
+    }
+    const idx: number[] = [];
+    const stride = C + 1;
+    for (let j = 0; j < R; j++) {
+      for (let i = 0; i < C; i++) {
+        const a = j * stride + i;
+        const b = a + 1;
+        const c = a + stride;
+        const d = c + 1;
+        idx.push(a, c, b, b, c, d);
+      }
+    }
+
+    // Smooth (LINEAR) sampling + mipmaps so the tiling floor doesn't shimmer under
+    // the pixel-art NEAREST default when tiles minify toward the horizon. The game
+    // is global pixelArt (no AA → no auto mipmaps), so generate them for this one
+    // POT texture by hand.
+    this.scene.textures.get(FLOOR_TEXTURE_KEY).setFilter(Phaser.Textures.FilterMode.LINEAR);
+    this.enableMipmaps(FLOOR_TEXTURE_KEY);
+
+    const mesh = this.scene.add.mesh(W / 2, H / 2, FLOOR_TEXTURE_KEY);
+    mesh.addVertices(verts, uvs, idx, false, undefined, colors, alphas);
+    mesh.setOrtho(1, 1); // model [-1,1] → full viewport (no perspective divide)
+    mesh.hideCCW = false; // don't backface-cull our 2D quads
+    mesh.setScrollFactor(0);
+    mesh.setDepth(DEPTH.grid + 1); // above the gradient fill, below shadows/entities
+    this.floor = mesh;
+  }
+
+  /** Generate trilinear mipmaps for a POT texture so it minifies cleanly. */
+  private enableMipmaps(key: string): void {
+    try {
+      const renderer = this.scene.sys.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+      const gl = renderer.gl;
+      if (!gl) return;
+      const src = this.scene.textures.get(key).source[0];
+      if (!src.isPowerOf2) return;
+      const raw = (src.glTexture as unknown as { webGLTexture: WebGLTexture }).webGLTexture;
+      gl.bindTexture(gl.TEXTURE_2D, raw);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      // Anisotropic filtering keeps the floor crisp at grazing angles instead of
+      // the smeary blur isotropic mipmaps give a steeply-receding plane.
+      const agl = gl as WebGLRenderingContext & { getExtension(n: string): unknown };
+      const ext = (agl.getExtension('EXT_texture_filter_anisotropic') ||
+        agl.getExtension('WEBKIT_EXT_texture_filter_anisotropic')) as
+        | { TEXTURE_MAX_ANISOTROPY_EXT: number; MAX_TEXTURE_MAX_ANISOTROPY_EXT: number }
+        | null;
+      if (ext) {
+        const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number;
+        gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(4, max));
+      }
+    } catch {
+      /* mipmaps are an enhancement; LINEAR alone still works if this fails */
+    }
+  }
+
+  private updateFloorMesh(camX: number, camY: number): void {
+    const mesh = this.floor!;
+    const tileWorld = RENDER.floorTileWorld;
+    const worldBottom = camY + H;
+    const cx = W / 2;
+    const C = this.cols;
+    const stride = C + 1;
+    const verts = mesh.vertices;
+    for (let j = 0; j < this.rows.length; j++) {
+      const v = (worldBottom - this.rows[j]) / tileWorld;
+      const sp = this.spread[j];
+      for (let i = 0; i <= C; i++) {
+        const u = (camX + cx + (this.sx[i] - cx) * sp) / tileWorld;
+        const vert = verts[j * stride + i];
+        // The renderer samples tu/tv (tu = u * frameU); our floor uses the whole
+        // image (frameU = 1), so write tu/tv directly each frame.
+        vert.u = u;
+        vert.v = v;
+        vert.tu = u;
+        vert.tv = v;
+      }
+    }
   }
 
   update(): void {
@@ -61,10 +219,15 @@ export class Backdrop {
     g.fillGradientStyle(RENDER.floorFar, RENDER.floorFar, RENDER.floorNear, RENDER.floorNear, 1);
     g.fillRect(0, floorTop, W, H - floorTop);
 
+    // Textured floor: just rescroll the mesh UVs and skip the wireframe.
+    if (this.floor) {
+      this.updateFloorMesh(camX, camY);
+      return;
+    }
+
+    // ── Wireframe grid (fallback): horizontal floor lines bunching toward horizon ─
     const grid = RENDER.gridSize;
     const scroll = RENDER.gridScroll;
-
-    // ── Horizontal floor lines (constant world-Y), bunching toward the horizon ──
     const worldBottom = camY + H;
     const phaseY = ((worldBottom * scroll) % grid + grid) % grid;
     for (let k = 0; k < 80; k++) {
@@ -76,8 +239,7 @@ export class Backdrop {
       g.lineStyle(1, lerpColor(RENDER.gridFar, RENDER.gridColor, fade), 0.18 + 0.5 * fade);
       g.lineBetween(0, y, W, y);
     }
-
-    // ── Vertical floor lines (constant world-X), converging toward the vanish ──
+    // Vertical floor lines (constant world-X), converging toward the vanish.
     const phaseX = ((camX * scroll) % grid + grid) % grid;
     const n = Math.ceil(W / grid) + 2;
     for (let k = -1; k < n; k++) {
