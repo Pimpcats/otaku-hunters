@@ -12,8 +12,9 @@ import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
 // meta-shop come later.
 export class MetaScene extends Phaser.Scene {
   // Card portraits that walk in place (procedural bob for all, real frame cycle
-  // for any class whose sheet defines one — currently the goth).
-  private walkers: Phaser.GameObjects.Sprite[] = [];
+  // for any class whose sheet defines one — currently the goth). Each remembers
+  // its home anchor so the bob hops around the right spot.
+  private walkers: { sprite: Phaser.GameObjects.Sprite; x: number; y: number }[] = [];
 
   constructor() {
     super('Meta');
@@ -110,12 +111,13 @@ export class MetaScene extends Phaser.Scene {
     // Sprite (not Image) so it can play the walk-cycle animation; all three then
     // walk in place via the procedural bob below.
     const PORTRAIT_H = 88;
-    const sprite = this.add.sprite(0, -h / 2 + 72, dirTextureKey(c.texture, 'down'));
+    const portraitY = -h / 2 + 72;
+    const sprite = this.add.sprite(0, portraitY, dirTextureKey(c.texture, 'down'));
     sprite.setScale(PORTRAIT_H / sprite.height);
     const walkKey = `${c.texture}-down-walk`;
     if (this.anims.exists(walkKey)) sprite.play(walkKey);
     initWalkBob(sprite);
-    this.walkers.push(sprite);
+    this.walkers.push({ sprite, x: 0, y: portraitY });
 
     const name = this.add
       .text(0, -h / 2 + 124, c.name, {
@@ -169,7 +171,7 @@ export class MetaScene extends Phaser.Scene {
 
   update(_time: number, delta: number) {
     // Cards walk in place: always "moving" so the bob (and any frame cycle) runs.
-    for (const s of this.walkers) tickWalkBob(s, true, delta);
+    for (const w of this.walkers) tickWalkBob(w.sprite, w.x, w.y, true, delta);
   }
 
   private start(characterId: string, stageId: string) {
