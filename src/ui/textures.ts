@@ -212,8 +212,31 @@ function shurikenTexture(scene: Phaser.Scene, key: string): void {
 const MONSTERS: Record<string, CreatureSpec> = {
   [TEX.rushFan]: { size: 20, body: COLORS.rushFan, accent: 0xffd0d0, shape: 'spiky', ears: 'horns' },
   [TEX.merchMule]: { size: 24, body: COLORS.merchMule, accent: 0x8a5a2a, shape: 'box', accessory: 'bag' },
+  // Behavior-AI roster — each a distinct silhouette so it reads in the swarm.
+  [TEX.anxious]: { size: 20, body: COLORS.anxious, accent: 0x2a2f55, shape: 'round', accessory: 'glasses' },
+  [TEX.tooCool]: { size: 22, body: COLORS.tooCool, accent: 0x3a2a10, shape: 'round', accessory: 'mask' },
+  [TEX.cameko]: { size: 22, body: COLORS.cameko, accent: 0x113040, shape: 'box', accessory: 'glasses' },
+  [TEX.wotagei]: { size: 20, body: COLORS.wotagei, accent: 0xffffff, shape: 'round', accessory: 'headband' },
+  [TEX.kosan]: { size: 22, body: COLORS.kosan, accent: 0xffe08a, shape: 'round', accessory: 'crown' },
+  [TEX.jukakin]: { size: 28, body: COLORS.jukakin, accent: 0xffd24d, shape: 'box', accessory: 'bag' },
   [TEX.boss]: { size: 28, body: 0xc44dff, accent: 0xffe08a, shape: 'round', ears: 'horns', accessory: 'crown' },
 };
+
+/** A 「ガチャ」capsule pickup: a two-tone gachapon ball (gold top, white bottom). */
+function gachaTexture(scene: Phaser.Scene, key: string): void {
+  if (scene.textures.exists(key)) return;
+  const s = 18;
+  const r = s / 2;
+  const g = scene.make.graphics({ x: 0, y: 0 });
+  g.fillStyle(0xffffff, 1).fillCircle(r, r, r); // bottom shell (white)
+  g.fillStyle(COLORS.gacha, 1)
+    .slice(r, r, r, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false)
+    .fillPath(); // top shell (gold)
+  g.fillStyle(OUTLINE, 0.85).fillRect(0, r - 1, s, 2); // seam
+  g.lineStyle(2, OUTLINE, 0.9).strokeCircle(r, r, r);
+  g.generateTexture(key, s, s);
+  g.destroy();
+}
 
 /** Build every placeholder texture used by the run. Idempotent. */
 export function generatePlaceholderTextures(scene: Phaser.Scene): void {
@@ -229,6 +252,7 @@ export function generatePlaceholderTextures(scene: Phaser.Scene): void {
   circleTexture(scene, TEX.bullet, 5, COLORS.bullet);
   pockyTexture(scene, TEX.pocky);
   shurikenTexture(scene, TEX.shuriken);
+  gachaTexture(scene, TEX.gacha);
   // word token: a small square
   if (!scene.textures.exists(TEX.word)) {
     const g = scene.make.graphics({ x: 0, y: 0 });

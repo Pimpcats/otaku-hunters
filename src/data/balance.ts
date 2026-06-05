@@ -288,6 +288,23 @@ export interface EnemyBase {
 export const ENEMY_BASE: Record<string, EnemyBase> = {
   RushFan: { hp: 6, contact: 8, speed: 70, xp: 1 },
   MerchMule: { hp: 14, contact: 6, speed: 56, xp: 3 },
+  // Themed behavior-AI roster (§7). Stats are placeholders — tune by playtest.
+  AnxiousOne: { hp: 8, contact: 7, speed: 84, xp: 2 }, // skittish, fast
+  IdolWota: { hp: 12, contact: 7, speed: 68, xp: 3 }, // swaying, hard to pin
+  TooCool: { hp: 16, contact: 9, speed: 60, xp: 4 }, // shrugs off weak hits
+  CameraGremlin: { hp: 10, contact: 6, speed: 64, xp: 3 }, // ranged flasher
+  Lurker: { hp: 18, contact: 8, speed: 50, xp: 4 }, // powers up if ignored
+  Glomper: { hp: 40, contact: 12, speed: 38, xp: 6 }, // slow tank, latches
+};
+
+// Per-archetype behavior tunables (all live-tunable; movement/AI in archetypes.ts).
+export const BEHAVIOR = {
+  anxious: { panicRange: 130, fleeMs: 700, approachMul: 1.15 }, // rush, then bolt
+  idolWota: { swaySpeed: 0.012, swayAmp: 0.85 }, // lateral concert sway (rad)
+  lurker: { farRange: 300, buffRate: 0.05, buffMax: 1.5, crawl: 0.45 }, // ramp while ignored
+  glomper: { latchRange: 40, slow: 0.45 }, // multiplies player move speed while latched
+  tooCool: { weakHit: 8, glintEveryMs: 2200, glintMs: 600, swagger: 0.7 }, // invuln pulses
+  cameko: { standRange: 230, flashEveryMs: 3000 }, // stop-and-flash
 };
 
 // Themed bestiary labels — the superfan archetypes named so they teach vocab.
@@ -296,6 +313,12 @@ export const ENEMY_BASE: Record<string, EnemyBase> = {
 export const ENEMY_VOCAB: Record<string, { name: string; vocab: Vocab }> = {
   RushFan: { name: 'Fan', vocab: { jp: 'ファン', romaji: 'Fan', meaning: 'fan' } },
   MerchMule: { name: 'Scalper', vocab: { jp: '転売ヤー', romaji: 'Tenbaiyā', meaning: 'scalper / reseller' } },
+  AnxiousOne: { name: 'Shy Fan', vocab: { jp: '陰キャ', romaji: 'Inkya', meaning: 'shy / introvert type' } },
+  TooCool: { name: 'Cool Fan', vocab: { jp: '陽キャ', romaji: 'Yōkya', meaning: 'cool / outgoing type' } },
+  CameraGremlin: { name: 'Camera Otaku', vocab: { jp: 'カメコ', romaji: 'Kameko', meaning: 'camera-otaku' } },
+  IdolWota: { name: 'Idol Stan', vocab: { jp: 'ヲタ芸', romaji: 'Wotagei', meaning: 'idol-fan dance' } },
+  Lurker: { name: 'Old Guard', vocab: { jp: '古参', romaji: 'Kosan', meaning: 'old-timer fan' } },
+  Glomper: { name: 'Whale', vocab: { jp: '重課金', romaji: 'Jūkakin', meaning: 'whale / heavy spender' } },
   ultimate_collector: {
     name: 'The Ultimate Collector',
     vocab: { jp: '究極コレクター', romaji: 'Kyūkyoku Korekutā', meaning: 'ultimate collector' },

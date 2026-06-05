@@ -11,6 +11,7 @@ import {
   WORD_XP,
   BOSS,
   BOSS_TIME,
+  BEHAVIOR,
   type Grade,
 } from '../data/balance';
 import { InputController } from '../systems/input';
@@ -77,6 +78,7 @@ export class RunScene extends Phaser.Scene {
   private bossSpawned = false;
   private boss: Sprite | null = null;
   private revivesUsed = 0; // Extra Life passives consumed this run
+  private playerSlow = 1; // Glomper latch debuff on move speed (1 = none)
 
   private collectedWords = new Map<string, Word>();
   private collectedSet = new Set<string>();
@@ -101,6 +103,7 @@ export class RunScene extends Phaser.Scene {
     this.bossSpawned = false;
     this.boss = null;
     this.revivesUsed = 0;
+    this.playerSlow = 1;
     this.collectedWords = new Map();
     this.collectedSet = new Set();
     this.recentSids = [];
@@ -193,8 +196,8 @@ export class RunScene extends Phaser.Scene {
     const e = this.enemies.get(x, y, dirTextureKey(arc.texture, 'down')) as Sprite | null;
     if (!e) return;
     e.enableBody(true, x, y, true, true);
-    e.setCircle(9, 0, 0);
-    e.setScale(1);
+    e.setScale(arc.scale ?? 1);
+    e.setCircle(arc.hitRadius ?? 9, 0, 0);
     e.setFlipX(false);
     e.setDepth(40);
     e.clearTint();
@@ -250,6 +253,11 @@ export class RunScene extends Phaser.Scene {
   private dealDamage = (e: Sprite, amount: number) => {
     const ed = e.getData('edata') as EnemyData | undefined;
     if (!ed || !e.active) return;
+    // Too-Cool shrugs off weak hits and is untargetable during its glint pulse.
+    if (ed.invuln || (ed.archetype.weakHit !== undefined && amount < ed.archetype.weakHit)) {
+      this.deflect(e);
+      return;
+    }
     ed.hp -= amount;
     e.setTintFill(0xffffff);
     this.time.delayedCall(40, () => {
@@ -264,6 +272,26 @@ export class RunScene extends Phaser.Scene {
   private onBulletHit: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback = (bObj, eObj) => {
     this.weapon.onBulletOverlap(bObj as Sprite, eObj as Sprite, this.dealDamage);
   };
+
+  /** Brief blue spark when a hit is shrugged off (Too-Cool tell) — no damage. */
+  private deflect(e: Sprite) {
+    e.setTint(0x9af6ff);
+    this.time.delayedCall(70, () => {
+      if (!e.active) return;
+      const tc = e.getData('tint') as number | undefined;
+      if (tc !== undefined) e.setTint(tc);
+      else e.clearTint();
+    });
+  }
+
+  /** Localized white pop where a Camera Gremlin flashes (cheap, fades fast). */
+  private cameraFlash(x: number, y: number) {
+    const c = this.add
+      .circle(x, y, 26, 0xffffff, 0.5)
+      .setDepth(DEPTH.vfx)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: c, scale: 3, alpha: 0, duration: 320, ease: 'Cubic.out', onComplete: () => c.destroy() });
+  }
 
   private killEnemy(e: Sprite, ed: EnemyData) {
     const { x, y } = e;
@@ -538,7 +566,7 @@ export class RunScene extends Phaser.Scene {
 
     // movement + 4-direction facing
     this.controls.getDirection(this.dir);
-    const speed = this.character.baseMoveSpeed * stats.moveSpeed;
+    const speed = this.character.baseMoveSpeed * stats.moveSpeed * this.playerSlow;
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(this.dir.x * speed, this.dir.y * speed);
     const moving = this.dir.x !== 0 || this.dir.y !== 0;
     this.facing = vectorToCardinal(this.dir.x, this.dir.y, this.facing);
@@ -555,14 +583,18 @@ export class RunScene extends Phaser.Scene {
     });
 
     // enemy AI + facing (from their resulting velocity)
+    let slow = 1; // Glomper latch debuff, recomputed each frame
     for (const obj of this.enemies.getChildren()) {
       const e = obj as Sprite;
       if (!e.active) {
         this.shadows.hide(e); // recycled out of the pool — drop its planted shadow
         continue;
       }
-      const arc = (e.getData('edata') as EnemyData).archetype;
+      const ed = e.getData('edata') as EnemyData;
+      const arc = ed.archetype;
       arc.ai(e, this.player, delta);
+      if (ed.latched) slow = Math.min(slow, BEHAVIOR.glomper.slow);
+      if (ed.flash) { ed.flash = false; this.cameraFlash(e.x, e.y); }
       const body = e.body as Phaser.Physics.Arcade.Body;
       const face = vectorToCardinal(body.velocity.x, body.velocity.y, (e.getData('face') as Cardinal) ?? 'down');
       e.setData('face', face);
@@ -570,6 +602,7 @@ export class RunScene extends Phaser.Scene {
       if (RENDER.ySort) e.setDepth(baselineY(e));
       this.shadows.sync(e);
     }
+    this.playerSlow = slow; // applied to move speed next frame (imperceptible latency)
 
     // weapons
     this.weapon.update(time, this.player.x, this.player.y, this.enemies, this.dealDamage);
