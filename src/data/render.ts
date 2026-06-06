@@ -114,6 +114,12 @@ export const RENDER = {
   // ── Layer 4: Parallax background ────────────────────────────────────────────
   parallax: true,
   parallaxStrength: [0.12, 0.3, 0.55] as number[], // far → near, fraction of camera scroll
+  // Per-layer band height (fraction of the back-wall band), far → near. Each layer
+  // is anchored at the horizon SEAM and shows the BOTTOM of its image, so a shorter
+  // front layer reveals the taller layer behind it in the band above it. far=1 fills
+  // the whole band (its transparent sky shows the gradient); mid/near step down so
+  // the three read as stacked depth planes. Requires transparent skies on far+mid.
+  parallaxHeight: [1.0, 0.82, 0.6] as number[],
   useParallaxArt: true, // true = real skyline art per layer (procedural where a layer has none);
   //                       false = the procedural rectangle silhouettes everywhere (A/B compare)
 

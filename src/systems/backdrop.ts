@@ -299,14 +299,19 @@ export class Backdrop {
       if (layer) {
         layer.s.setVisible(show);
         if (show) {
-          // Fill the whole back-wall band; scale the image to the band height
-          // (proportional, no squash) and tile horizontally + scroll for parallax.
-          layer.s.setPosition(0, 0);
-          layer.s.setSize(W, floorTop);
-          const k = floorTop / layer.texH; // fit image height → band height
-          layer.s.setTileScale(k, k);
+          // Bottom-anchor the layer at the horizon seam and show only the BOTTOM
+          // `hf` fraction of the band. A full image (hf = 1) fills the band; shorter
+          // front layers leave the upper band exposing the taller layer behind them,
+          // so far/mid/near read as stacked depth planes (needs transparent skies on
+          // far+mid). The image is scaled so hf = 1 maps one image height → the band.
+          const hf = Phaser.Math.Clamp(RENDER.parallaxHeight[i] ?? 1, 0.05, 1);
+          const dispH = floorTop * hf;
+          const k = floorTop / layer.texH; // one image height → the FULL band height
+          layer.s.setPosition(0, floorTop - dispH); // bottom edge sits on the seam
+          layer.s.setSize(W, dispH);
+          layer.s.setTileScale(k, k); // proportional, no squash
           layer.s.tilePositionX = (camX * strength) / k; // horizontal parallax drift
-          layer.s.tilePositionY = 0;
+          layer.s.tilePositionY = (floorTop - dispH) / k; // reveal the bottom of the image
         }
         continue;
       }
