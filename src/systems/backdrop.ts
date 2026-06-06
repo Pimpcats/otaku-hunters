@@ -31,7 +31,8 @@ export const FLOOR_TEXTURE_KEY = 'floor_tex';
 // layers instead of the procedural silhouettes. Any missing layer simply isn't created.
 export const PARALLAX_KEYS = ['env_parallax_far', 'env_parallax_mid', 'env_parallax_near'] as const;
 
-const HORIZON_FULL = 0.15; // horizon screen-y fraction at tilt = 1
+// Sky/back-wall band height (and floor horizon) = H * RENDER.horizonFrac.
+const floorTopY = (): number => H * Phaser.Math.Clamp(RENDER.horizonFrac, 0.02, 0.9);
 const PERSP = 5; // perspective compression strength at tilt = 1
 const COLS = 18; // mesh columns across the screen
 // Horizontal tile-compression cap lives in RENDER.maxSpread (tunable).
@@ -68,6 +69,7 @@ export class Backdrop {
     for (let i = 0; i < PARALLAX_KEYS.length; i++) {
       const key = PARALLAX_KEYS[i];
       if (!this.scene.textures.exists(key)) continue; // this layer stays procedural
+      this.scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR); // smooth the downscale-to-band
       const img = this.scene.textures.get(key).getSourceImage() as { height: number };
       const s = this.scene.add
         .tileSprite(0, 0, W, img.height || H, key)
@@ -88,7 +90,7 @@ export class Backdrop {
   // ── Textured floor (Mesh) ──────────────────────────────────────────────────
   private buildFloorMesh(): void {
     const tilt = Phaser.Math.Clamp(RENDER.groundTilt, 0, 1);
-    const floorTop = Phaser.Math.Linear(0, H * HORIZON_FULL, tilt);
+    const floorTop = floorTopY();
     const tileWorld = RENDER.floorTileWorld;
 
     // Find how far back (world px) the floor recedes before reaching the horizon.
@@ -232,7 +234,7 @@ export class Backdrop {
     const camX = cam.scrollX;
     const camY = cam.scrollY;
     const tilt = Phaser.Math.Clamp(RENDER.groundTilt, 0, 1);
-    const floorTop = Phaser.Math.Linear(0, H * HORIZON_FULL, tilt); // wall/floor seam
+    const floorTop = floorTopY(); // wall/floor seam
     const cx = W / 2; // vanishing x
 
     this.drawParallax(camX, camY, floorTop);
@@ -297,9 +299,14 @@ export class Backdrop {
       if (layer) {
         layer.s.setVisible(show);
         if (show) {
-          layer.s.y = floorTop - layer.texH; // strip's bottom rests on the horizon
-          layer.s.tilePositionX = camX * strength; // drift slower than the camera
-          layer.s.tilePositionY = -camY * strength * 0.05;
+          // Fill the whole back-wall band; scale the image to the band height
+          // (proportional, no squash) and tile horizontally + scroll for parallax.
+          layer.s.setPosition(0, 0);
+          layer.s.setSize(W, floorTop);
+          const k = floorTop / layer.texH; // fit image height → band height
+          layer.s.setTileScale(k, k);
+          layer.s.tilePositionX = (camX * strength) / k; // horizontal parallax drift
+          layer.s.tilePositionY = 0;
         }
         continue;
       }

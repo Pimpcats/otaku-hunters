@@ -95,7 +95,7 @@ export const RENDER = {
 
   // ── Layer 3: Tilted ground plane ────────────────────────────────────────────
   groundTilt: 0.4, // 0 = flat top-down grid, 1 = dramatic Hades-like recession. START LOW.
-  horizonFrac: 0.18, // at full tilt, the floor's far edge sits this fraction down the screen
+  horizonFrac: 0.45, // sky/back-wall band height as a fraction of screen (drives the horizon + skyline area)
   cameraHeightBias: 0.12, // shifts framing up as tilt rises so the swarm stays visible (0..1)
   gridSize: 72, // world px between floor grid lines
   gridScroll: 1.0, // how strongly the floor grid tracks camera movement
@@ -106,7 +106,7 @@ export const RENDER = {
   // plain grayscale placeholder paver. Gap 3 (floor texture) is fully wired and a
   // one-line flip: drop a seamless tile into public/textures/floors/arcade_floor_tile.png
   // (see that folder's README), set this true, and it rides the same recession.
-  floorTexture: true, // ON: the arcade neon tile (public/textures/floors/arcade_floor_tile.png)
+  floorTexture: false, // procedural neon TRON grid (the arcade tile has baked perspective; flip true for a FLAT seamless tile)
   floorTileWorld: 220, // world px one texture tile spans (bigger = fewer repeats + gentler perspective)
   maxSpread: 4, // cap on horizontal tile compression toward the horizon (lower = flatter/smoother; higher = pinchy trapezoids)
   floorTextureTint: 0xffffff, // mesh multiply tint NEAR (white = show colored art true); hazes to floorFar at the horizon

@@ -64,7 +64,7 @@ stand-in works) · ☐ missing (drop zone empty).
 ## Floor — `public/textures/floors/` (512×512 seamless)
 | File | Use | Status | Wired |
 |---|---|---|---|
-| `arcade_floor_tile.png` | The Arcade floor | ✓ ready | ✓ **active** (`RENDER.floorTexture` on) |
+| `arcade_floor_tile.png` | The Arcade floor | ✓ stored | ☐ OFF — has baked perspective; procedural TRON grid active (`floorTexture=false`). Flip on with a FLAT seamless tile. |
 | `floor_placeholder.png` | grayscale paver fallback | ▣ placeholder | yes (used only if the tile is removed) |
 | `neonstreet_floor_tile.webp` (1254×1254; uploaded as webp) | Neon-street stage floor | ✓ stored | not wired — no neon-street stage yet (recommend a 512×512 PNG when that stage lands; 1254 is non-power-of-two → no mipmaps) |
 | `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
@@ -72,9 +72,9 @@ stand-in works) · ☐ missing (drop zone empty).
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)
 | File | Use | Status | Wired |
 |---|---|---|---|
-| `arcade_far.webp` (1920×300) | far skyline | ✓ ready | ✓ **active** (image) |
-| `arcade_mid.webp` (1920×400) | mid buildings | ✓ ready | ✓ **active** (image) |
-| `arcade_near.webp` (1920×500) | near neon street | ✓ ready | ✓ **active** (image) |
+| `arcade_far.webp` (1920×1000) | far skyline | ✓ ready | ✓ active (opaque) |
+| `arcade_mid.webp` (1920×960) | mid storefronts | ✓ ready | ✓ active (opaque) |
+| `arcade_near.webp` (1920×1024) | near arcade street | ✓ ready | ✓ **active** (front; fills the band) |
 
 > Toggle `RENDER.useParallaxArt = false` to A/B against the all-procedural look.
 
