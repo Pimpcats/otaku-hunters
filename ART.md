@@ -15,7 +15,8 @@ cyan, hot magenta/pink, acid yellow, vivid purple), strong glow. Finish each ass
 ---
 
 ## 1. Player characters — animated sheets
-**Where:** `public/<sheet>.webp` · **Wiring:** `src/ui/playerSheet.ts` (`SHEETS`)
+**Where:** `public/sprites/heroes/<char>/{idle,walk,attack}.png` (legacy sheets in
+`public/sprites/heroes/_legacy/`) · **Wiring:** `src/ui/playerSheet.ts` (`SHEETS`)
 
 Characters need real multi-frame **walk cycles**, so they use sprite sheets (not the
 Kenney single-image path). Each sheet entry declares `frameWidth/frameHeight`, the
@@ -24,11 +25,11 @@ character sheet you (or I) edit the `SHEETS` array with the **exact grid dimensi
 — Claude Code can't infer slicing from the image, so give the frame size explicitly.
 
 - Facings: front (down), back (up), side (left = flipped side).
-- Drop the file in `public/`, then tell me the grid (cols×rows, cell px) and which
-  frames map to each facing + walk cycle, and I'll wire it.
+- Drop the sheets in `public/sprites/heroes/<char>/`, then tell me the grid
+  (cols×rows, cell px) and which frames map to each facing + walk cycle, and I'll wire it.
 
 ## 2. Enemies — single directional image
-**Where:** `public/kenney/<name>.png` + list in `public/kenney/manifest.json`
+**Where:** `public/sprites/enemies/<name>.png` + list in `public/art-manifest.json`
 **Wiring:** `src/ui/kenneyAssets.ts` (baked onto `${base}_down|_up|_side`)
 
 | File | Enemy | Size (transparent, faces down) |
@@ -42,7 +43,7 @@ One front-facing image is mirrored to the 3 facings (left = flipped side). For t
 directional walk cycles, use the character-sheet pattern (§1) instead.
 
 ## 3. Projectiles — single image (tinted in-engine)
-**Where:** `public/kenney/<name>.png` + manifest · **Wiring:** `kenneyAssets.ts`
+**Where:** `public/sprites/weapons/<name>.png` + `art-manifest.json` · **Wiring:** `kenneyAssets.ts`
 
 Draw **white/grayscale on transparent** so the weapon colour tints them.
 
@@ -53,7 +54,7 @@ Draw **white/grayscale on transparent** so the weapon colour tints them.
 | `bullet.png` | Generic bolt | ~10×10px |
 
 ## 4. Pickups — single image
-**Where:** `public/kenney/<name>.png` + manifest · **Wiring:** `kenneyAssets.ts`
+**Where:** `public/sprites/pickups/<name>.png` + `art-manifest.json` · **Wiring:** `kenneyAssets.ts`
 
 | File | Pickup | Size |
 |---|---|---|
@@ -62,14 +63,14 @@ Draw **white/grayscale on transparent** so the weapon colour tints them.
 | `gacha.png` | ガチャ evolution capsule | ~16–18px |
 
 ## 5. Floor — seamless tile
-**Where:** `public/kenney/floor.png` + manifest · **Wiring:** `kenneyAssets.ts` → `backdrop.ts`
+**Where:** `public/textures/floors/arcade_floor_tile.png` + `art-manifest.json` · **Wiring:** `kenneyAssets.ts` → `backdrop.ts`
 
 **Seamless + power-of-two** (128×128 or 256×256). Grayscale tiles best (the floor
 mesh tints it with `RENDER.floorNear/floorFar`); dark/tech/neon-grid suits the look.
 After adding, flip `RENDER.floorTexture = true` to swap the wireframe grid for it.
 
 ## 6. Neon-city parallax — skyline layers
-**Where:** `public/kenney/parallax_{far,mid,near}.png` + manifest
+**Where:** `public/textures/parallax/arcade_{far,mid,near}.png` + `art-manifest.json`
 **Wiring:** `kenneyAssets.ts` → `src/systems/backdrop.ts` (`PARALLAX_KEYS`)
 
 Horizontally **tileable**, **transparent** above the rooftops. Rendered as scrolling
@@ -89,9 +90,10 @@ in `src/data/render.ts` if you want more sky for the city to fill.
 ---
 
 ## Manifests (so missing files never 404)
-- **`public/kenney/manifest.json`** — list every Kenney/art filename you've added
-  (enemies, projectiles, pickups, floor, parallax). The loader requests only listed
-  files. Ships as `[]`.
+- **`public/art-manifest.json`** — list every art file path (relative to `public/`)
+  you've added for floor / parallax / enemies / weapons / pickups. The loader
+  requests only listed files. Ships as `[]`. See `public/ASSET_INDEX.md` for the
+  master checklist.
 - **Audio** is separate: `public/audio/manifest.json` (VOICEVOX clips, see `CREDITS.md`).
 
 ## License

@@ -21,7 +21,7 @@ export class BootScene extends Phaser.Scene {
     // Tiling floor texture for the 2.5D ground plane (placeholder; see CREDITS.md).
     // A Kenney floor.png (loaded above) overrides this in create(); if neither is
     // present the backdrop falls back to the wireframe grid.
-    this.load.image(FLOOR_TEXTURE_KEY, `${import.meta.env.BASE_URL}textures/floor_placeholder.png`);
+    this.load.image(FLOOR_TEXTURE_KEY, `${import.meta.env.BASE_URL}textures/floors/floor_placeholder.png`);
   }
 
   create() {

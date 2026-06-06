@@ -104,8 +104,8 @@ export const RENDER = {
   // DEFAULT false: the glowing electric-cyan wireframe grid on near-black IS the
   // neon Edgerunners payoff (Bible §3 gaps 1–2) and reads more "neon" than the
   // plain grayscale placeholder paver. Gap 3 (floor texture) is fully wired and a
-  // one-line flip: drop a dark/tech/neon CC0 tile into public/kenney/floor.png
-  // (see public/kenney/README.md), set this true, and it rides the same recession.
+  // one-line flip: drop a seamless tile into public/textures/floors/arcade_floor_tile.png
+  // (see that folder's README), set this true, and it rides the same recession.
   floorTexture: false, // wireframe neon grid (default); flip true for the tiling texture
   floorTileWorld: 110, // world px that one texture tile spans (bigger = crisper recession)
 
