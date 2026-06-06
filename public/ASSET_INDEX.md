@@ -34,10 +34,12 @@ stand-in works) · ☐ missing (drop zone empty).
 ## Enemies — `public/sprites/enemies/` (green-screen 4-view sheets ~1983×793, sliced)
 | File | Enemy | Status | Wired |
 |---|---|---|---|
-| `rushfan_4dir.png` | Rushing Fan ファン (red hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed + rect-sliced ~46px |
+| `rushfan_4dir.png` | Rushing Fan ファン (red hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed + rect-sliced ~46px (static fallback) |
+| `rushfan_walk.webp` | Rushing Fan ファン — **WALK animation** | ✓ **ready/active** | 4×4 @313 sheet → baked walk anims (down/up/side @ ~10fps); standard facing |
 | `merchmule_4dir.png` | Merch-Mule 転売ヤー (gold jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~50px (bulkier) |
 | `anxious_4dir.png` | Shy Fan 陰キャ (dark-blue hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
-| `toocool_4dir.png` | Cool Fan 陽キャ (purple jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `toocool_4dir.png` | Cool Fan 陽キャ (purple jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px (static fallback) |
+| `toocool_walk.webp` | Cool Fan 陽キャ — **WALK animation** | ✓ **ready/active** | 4×4 @313 sheet → baked walk anims (~8fps); **reversed facing** (walks backwards — moving toward you shows his back) |
 | `camera_4dir.png` | Camera Otaku カメコ (teal, crouching) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
 | `wota_4dir.png` | Idol Stan ヲタ芸 (white happi) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
 | `lurker_4dir.png` | Old Guard 古参 (olive jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px (grows with buff) |
@@ -66,10 +68,10 @@ stand-in works) · ☐ missing (drop zone empty).
 |---|---|---|---|
 | `arcade_floor_tile.png` | The Arcade floor | ✓ stored | ☐ OFF — has baked perspective; procedural TRON grid active (`floorTexture=false`). Flip on with a FLAT seamless tile. |
 | `floor_placeholder.png` | grayscale paver fallback | ▣ placeholder | yes (used only if the tile is removed) |
-| `neon_street_tile_a.webp` (512×512) | Neon Street floor variant A (manhole, cyan puddle, 未来最高) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
-| `neon_street_tile_b.webp` (512×512) | Neon Street floor variant B (magenta streaks, sewer grate, stickers) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
-| `neon_street_tile_c.webp` (512×512) | Neon Street floor variant C (yellow chevrons, コレクション最高, gutter) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
-| `neon_street_tile_d.webp` (512×512) | Neon Street floor variant D (crosswalk, pins, puddles) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
+| `neon_street_tile_a.webp` (512×512) | Neon Street floor variant A (manhole, cyan puddle) | ✓ ready | ✓ wired (variant atlas) |
+| `neon_street_tile_b.webp` (512×512) | Neon Street floor variant B (magenta glow, sewer grate, stickers) | ✓ ready | ✓ wired (variant atlas) |
+| `neon_street_tile_c.webp` (512×512) | Neon Street floor variant C (yellow chevrons, drainage gutter) | ✓ ready | ✓ wired (variant atlas) |
+| `neon_street_tile_d.webp` (512×512) | Neon Street floor variant D (crosswalk stripes, pins, puddles) | ✓ ready | ✓ wired (variant atlas) |
 | `neonstreet_floor_tile.webp` (1254×1254) | (older single neon-street tile) | ✓ stored | superseded by the A–D variant set above |
 | `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
 
@@ -77,9 +79,7 @@ stand-in works) · ☐ missing (drop zone empty).
 > are both on, the floor mesh composes an N×N atlas (`floorVariantAtlas`, default 4×4) where
 > each cell deterministically picks one of the A–D tiles (seeded by cell position) — killing
 > the single-tile repeat. Defaults **OFF**: the Arcade stage keeps the procedural neon grid;
-> this turns on for the Neon Street stage (roadmap Phase 6). ⚠ **The provided A–D tiles have a
-> baked-in "A"/"B"/"C"/"D" label in the top-left corner** (annotation, not part of the tile) —
-> they will repeat on the floor until replaced with clean (unlabelled) versions.
+> this turns on for the Neon Street stage (roadmap Phase 6). Tiles are clean/unlabelled.
 
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)
 | File | Use | Status | Wired |

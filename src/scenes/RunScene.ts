@@ -708,7 +708,15 @@ export class RunScene extends Phaser.Scene {
       const body = e.body as Phaser.Physics.Arcade.Body;
       const face = vectorToCardinal(body.velocity.x, body.velocity.y, (e.getData('face') as Cardinal) ?? 'down');
       e.setData('face', face);
-      applyFacing(e, arc.texture, face, 'walk');
+      // Too-Cool walks backwards: swap up/down so moving toward you shows his back.
+      const shown: Cardinal = arc.reverseFacing
+        ? face === 'down'
+          ? 'up'
+          : face === 'up'
+            ? 'down'
+            : face
+        : face;
+      applyFacing(e, arc.texture, shown, 'walk');
       if (RENDER.ySort) e.setDepth(baselineY(e));
       this.shadows.sync(e);
     }
