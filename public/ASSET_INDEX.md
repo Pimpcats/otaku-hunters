@@ -64,8 +64,8 @@ stand-in works) · ☐ missing (drop zone empty).
 ## Floor — `public/textures/floors/` (512×512 seamless)
 | File | Use | Status | Wired |
 |---|---|---|---|
-| `floor_placeholder.png` | current stand-in (grayscale paver) | ▣ placeholder | yes (loaded; `RENDER.floorTexture` off by default) |
-| `arcade_floor_tile.png` | The Arcade floor | ☐ missing | ✓ (set `RENDER.floorTexture = true` after adding) |
+| `arcade_floor_tile.png` | The Arcade floor | ✓ ready | ✓ **active** (`RENDER.floorTexture` on) |
+| `floor_placeholder.png` | grayscale paver fallback | ▣ placeholder | yes (used only if the tile is removed) |
 | `themepark_floor_tile.png`, `neonstreet_floor_tile.png` | future stages | ☐ missing | needs stage wiring |
 
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)

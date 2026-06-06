@@ -106,8 +106,9 @@ export const RENDER = {
   // plain grayscale placeholder paver. Gap 3 (floor texture) is fully wired and a
   // one-line flip: drop a seamless tile into public/textures/floors/arcade_floor_tile.png
   // (see that folder's README), set this true, and it rides the same recession.
-  floorTexture: false, // wireframe neon grid (default); flip true for the tiling texture
+  floorTexture: true, // ON: the arcade neon tile (public/textures/floors/arcade_floor_tile.png)
   floorTileWorld: 110, // world px that one texture tile spans (bigger = crisper recession)
+  floorTextureTint: 0xffffff, // mesh multiply tint NEAR (white = show colored art true); hazes to floorFar at the horizon
 
   // ── Layer 4: Parallax background ────────────────────────────────────────────
   parallax: true,
