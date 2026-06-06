@@ -100,7 +100,15 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     note: 'Merch-Mule 転売ヤー — 4-view sheet (1983×793), green-screened; keyed + rect-sliced, ~50px (bulkier).',
     sheet: { viewY: 152, viewH: 482, displayHeight: 50, views: { down: [62, 456], up: [559, 926], side: [1011, 1419] }, chromaKey: true },
   },
-  { kind: 'dir', id: 'anxious', path: 'sprites/enemies/anxious.png', base: TEX.anxious, sideFlip: false, note: 'Shy Fan 陰キャ, ~48px, faces down.' },
+  {
+    kind: 'dir',
+    id: 'anxious',
+    path: 'sprites/enemies/anxious.webp',
+    base: TEX.anxious,
+    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
+    note: 'Shy Fan 陰キャ — 4-view sheet (1983×793), transparent; rect-sliced ~44px.',
+    sheet: { viewY: 137, viewH: 518, displayHeight: 44, views: { down: [142, 426], up: [611, 877], side: [1050, 1387] } },
+  },
   {
     kind: 'dir',
     id: 'tooCool',

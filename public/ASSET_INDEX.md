@@ -36,7 +36,7 @@ stand-in works) · ☐ missing (drop zone empty).
 |---|---|---|---|
 | `rushfan.webp` | Rushing Fan ファン | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
 | `merchmule.webp` | Merch-Mule 転売ヤー | ✓ **ready/active** | 4-view sheet (green-screen keyed), ~50px |
-| `anxious.png` | Shy Fan 陰キャ | ☐ (procedural) | single-frame ✓ |
+| `anxious.webp` | Shy Fan 陰キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
 | `toocool.webp` | Cool Fan 陽キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
 | `camera.png` | Camera Otaku カメコ | ☐ (procedural) | single-frame ✓ |
 | `wota.png` | Idol Stan ヲタ芸 | ☐ (procedural) | single-frame ✓ |
