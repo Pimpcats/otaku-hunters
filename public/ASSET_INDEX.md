@@ -35,7 +35,7 @@ stand-in works) · ☐ missing (drop zone empty).
 | File | Enemy | Status | Wired |
 |---|---|---|---|
 | `rushfan_4dir.png` | Rushing Fan ファン (red hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed + rect-sliced ~46px (static fallback) |
-| `rushfan_walk.webp` | Rushing Fan ファン — **WALK animation** | ✓ **ready/active** | 4×4 @313 sheet → baked walk anims (down/up/side @ ~10fps); standard facing |
+| `rushfan_walk.webp` | Rushing Fan ファン — **8-DIR WALK animation** | ✓ **ready/active** | 8×4 sheet → baked walk anims for all 8 directions (down/up/left/right + 4 diagonals @ ~10fps); standard facing. First 8-direction enemy. |
 | `merchmule_4dir.png` | Merch-Mule 転売ヤー (gold jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~50px (bulkier) |
 | `anxious_4dir.png` | Shy Fan 陰キャ (dark-blue hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
 | `toocool_4dir.png` | Cool Fan 陽キャ (purple jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px (static fallback) |
