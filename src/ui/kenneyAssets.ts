@@ -101,7 +101,15 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     sheet: { viewY: 152, viewH: 482, displayHeight: 50, views: { down: [62, 456], up: [559, 926], side: [1011, 1419] }, chromaKey: true },
   },
   { kind: 'dir', id: 'anxious', path: 'sprites/enemies/anxious.png', base: TEX.anxious, sideFlip: false, note: 'Shy Fan 陰キャ, ~48px, faces down.' },
-  { kind: 'dir', id: 'tooCool', path: 'sprites/enemies/toocool.png', base: TEX.tooCool, sideFlip: false, note: 'Cool Fan 陽キャ, ~48px, faces down.' },
+  {
+    kind: 'dir',
+    id: 'tooCool',
+    path: 'sprites/enemies/toocool.webp',
+    base: TEX.tooCool,
+    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
+    note: 'Cool Fan 陽キャ — 4-view sheet (1983×793), transparent; rect-sliced ~44px.',
+    sheet: { viewY: 87, viewH: 602, displayHeight: 44, views: { down: [160, 395], up: [601, 832], side: [1086, 1363] } },
+  },
   { kind: 'dir', id: 'cameko', path: 'sprites/enemies/camera.png', base: TEX.cameko, sideFlip: false, note: 'Camera Otaku カメコ, ~48px, faces down.' },
   { kind: 'dir', id: 'wotagei', path: 'sprites/enemies/wota.png', base: TEX.wotagei, sideFlip: false, note: 'Idol Stan ヲタ芸, ~48px, faces down.' },
   { kind: 'dir', id: 'kosan', path: 'sprites/enemies/lurker.png', base: TEX.kosan, sideFlip: false, note: 'Old Guard 古参, ~48px, faces down.' },
