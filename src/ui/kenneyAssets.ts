@@ -127,7 +127,15 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     note: 'Camera Otaku カメコ — 4-view sheet (1981×793), transparent, crouching; rect-sliced ~44px.',
     sheet: { viewY: 157, viewH: 462, displayHeight: 44, views: { down: [134, 428], up: [581, 852], side: [1028, 1429] } },
   },
-  { kind: 'dir', id: 'wotagei', path: 'sprites/enemies/wota.png', base: TEX.wotagei, sideFlip: false, note: 'Idol Stan ヲタ芸, ~48px, faces down.' },
+  {
+    kind: 'dir',
+    id: 'wotagei',
+    path: 'sprites/enemies/wota.webp',
+    base: TEX.wotagei,
+    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
+    note: 'Idol Stan ヲタ芸 — 4-view sheet (1983×793), transparent, wide glowstick pose; rect-sliced ~44px.',
+    sheet: { viewY: 41, viewH: 647, displayHeight: 44, views: { down: [113, 483], up: [621, 969], side: [1072, 1337] } },
+  },
   { kind: 'dir', id: 'kosan', path: 'sprites/enemies/lurker.png', base: TEX.kosan, sideFlip: false, note: 'Old Guard 古参, ~48px, faces down.' },
   { kind: 'dir', id: 'jukakin', path: 'sprites/enemies/glomper.png', base: TEX.jukakin, sideFlip: false, note: 'Whale 重課金, ~48px, faces down.' },
   { kind: 'dir', id: 'boss', path: 'sprites/enemies/boss_collector.png', base: TEX.boss, sideFlip: false, note: 'The Ultimate Collector 究極コレクター — larger, ~128px, faces down.' },
