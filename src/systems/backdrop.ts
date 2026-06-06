@@ -64,7 +64,7 @@ export class Backdrop {
   /** Build tiling parallax layers from any dropped-in skyline art. None present →
    *  drawParallax falls back to the procedural silhouettes. */
   private buildSkyline(): void {
-    if (!RENDER.parallax) return;
+    if (!RENDER.parallax || !RENDER.useParallaxArt) return; // toggle off → all procedural
     for (let i = 0; i < PARALLAX_KEYS.length; i++) {
       const key = PARALLAX_KEYS[i];
       if (!this.scene.textures.exists(key)) continue; // this layer stays procedural

@@ -113,6 +113,8 @@ export const RENDER = {
   // ── Layer 4: Parallax background ────────────────────────────────────────────
   parallax: true,
   parallaxStrength: [0.12, 0.3, 0.55] as number[], // far → near, fraction of camera scroll
+  useParallaxArt: true, // true = real skyline art per layer (procedural where a layer has none);
+  //                       false = the procedural rectangle silhouettes everywhere (A/B compare)
 
   // ── Layer 5: Atmosphere + neon glow (sourced from the ACTIVE_LOOK) ──────────
   vignette: L.vignette, // 0..1 soft edge-darkening (baked overlay)
