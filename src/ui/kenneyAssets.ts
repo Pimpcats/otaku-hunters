@@ -70,7 +70,7 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
   // ── Neon-city parallax skyline (textures/parallax), far → near ──────────────
   { kind: 'single', id: 'parallaxFar', path: 'textures/parallax/arcade_far.webp', key: PARALLAX_KEYS[0], note: 'Far skyline (arcade), 1920×300, horizontally seamless.' },
   { kind: 'single', id: 'parallaxMid', path: 'textures/parallax/arcade_mid.png', key: PARALLAX_KEYS[1], note: 'Mid skyline ~1920×300, tileable + transparent.' },
-  { kind: 'single', id: 'parallaxNear', path: 'textures/parallax/arcade_near.png', key: PARALLAX_KEYS[2], note: 'Near skyline ~1920×350, tileable + transparent.' },
+  { kind: 'single', id: 'parallaxNear', path: 'textures/parallax/arcade_near.webp', key: PARALLAX_KEYS[2], note: 'Near skyline (arcade), 1920×500, horizontally seamless; bottom meets the floor.' },
 
   // ── Enemies (sprites/enemies) — single front-facing frame, mirrored to facings ─
   { kind: 'dir', id: 'rushFan', path: 'sprites/enemies/rushfan.png', base: TEX.rushFan, sideFlip: false, note: 'Rushing Fan ファン, ~48px, transparent, faces down.' },
