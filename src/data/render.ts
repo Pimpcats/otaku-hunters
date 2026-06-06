@@ -107,7 +107,8 @@ export const RENDER = {
   // one-line flip: drop a seamless tile into public/textures/floors/arcade_floor_tile.png
   // (see that folder's README), set this true, and it rides the same recession.
   floorTexture: true, // ON: the arcade neon tile (public/textures/floors/arcade_floor_tile.png)
-  floorTileWorld: 110, // world px that one texture tile spans (bigger = crisper recession)
+  floorTileWorld: 220, // world px one texture tile spans (bigger = fewer repeats + gentler perspective)
+  maxSpread: 4, // cap on horizontal tile compression toward the horizon (lower = flatter/smoother; higher = pinchy trapezoids)
   floorTextureTint: 0xffffff, // mesh multiply tint NEAR (white = show colored art true); hazes to floorFar at the horizon
 
   // ── Layer 4: Parallax background ────────────────────────────────────────────
