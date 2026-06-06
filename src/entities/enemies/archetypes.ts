@@ -220,7 +220,7 @@ export const ARCHETYPES: Record<string, EnemyArchetype> = {
     texture: TEX.jukakin,
     color: COLORS.jukakin,
     dropsWord: false,
-    scale: 1.6,
+    scale: 1.4, // biggest non-boss (per the roster spec)
     hitRadius: 11,
     ai: (e, player) => {
       const d = e.getData('edata') as EnemyData;
@@ -237,6 +237,7 @@ export const ARCHETYPES: Record<string, EnemyArchetype> = {
     texture: TEX.boss,
     color: COLORS.word,
     dropsWord: false,
+    hitRadius: 30, // large central hitbox to match the ~88px boss art (vs. the 9px default)
     ai: (e, player) => moveToward(e, player.x, player.y, e.getData('speed')),
   },
 };

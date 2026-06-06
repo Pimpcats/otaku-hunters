@@ -31,18 +31,18 @@ stand-in works) · ☐ missing (drop zone empty).
 | 先生 Sensei | `sprites/heroes/sensei/sensei_4dir_transparent.webp` | 4-dir static (1536×1024 sheet, rect-sliced) | ✓ **ready/active** | yes — down/up/side+flip, ~60px |
 | 浪人 Rōnin | `sprites/heroes/ronin/ronin_4dir_transparent.webp` | 4-dir static (1536×1024 sheet, rect-sliced) | ✓ **ready/active** | yes — down/up/side+flip, ~60px |
 
-## Enemies — `public/sprites/enemies/` (~48×48, faces down, transparent)
+## Enemies — `public/sprites/enemies/` (green-screen 4-view sheets ~1983×793, sliced)
 | File | Enemy | Status | Wired |
 |---|---|---|---|
-| `rushfan.webp` | Rushing Fan ファン | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
-| `merchmule.webp` | Merch-Mule 転売ヤー | ✓ **ready/active** | 4-view sheet (green-screen keyed), ~50px |
-| `anxious.webp` | Shy Fan 陰キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
-| `toocool.webp` | Cool Fan 陽キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
-| `camera.webp` | Camera Otaku カメコ | ✓ **ready/active** | 4-view sheet (crouching), rect-sliced ~44px |
-| `wota.webp` | Idol Stan ヲタ芸 | ✓ **ready/active** | 4-view sheet (wide glowstick pose), rect-sliced ~44px |
-| `lurker.webp` | Old Guard 古参 | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px (grows with buff) |
-| `glomper.png` | Whale 重課金 | ☐ (procedural) | single-frame ✓ |
-| `boss_collector.png` | Ultimate Collector 究極コレクター (~128×128) | ☐ (procedural) | single-frame ✓ |
+| `rushfan_4dir.png` | Rushing Fan ファン (red hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed + rect-sliced ~46px |
+| `merchmule_4dir.png` | Merch-Mule 転売ヤー (gold jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~50px (bulkier) |
+| `anxious_4dir.png` | Shy Fan 陰キャ (dark-blue hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `toocool_4dir.png` | Cool Fan 陽キャ (purple jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `camera_4dir.png` | Camera Otaku カメコ (teal, crouching) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `wota_4dir.png` | Idol Stan ヲタ芸 (white happi) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `lurker_4dir.png` | Old Guard 古参 (olive jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px (grows with buff) |
+| `glomper_4dir.png` | Whale 重課金 (hot-pink, huge) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px × **scale 1.4** (biggest non-boss) |
+| `boss_collector_4dir.png` | Ultimate Collector 究極コレクター | ✓ **ready/active** | green-screen **3-phase × 4-view** sheet; **phase-1 row** wired ~88px (phases 2–3 await roadmap Phase 4) |
 
 ## Weapons / projectiles — `public/sprites/weapons/` (16–32px, transparent)
 | File | Use | Status | Wired |
