@@ -50,10 +50,11 @@ Pages (pimpcats.github.io/otaku-hunters). Stays 2D — see §3.
 - ✅ **In-engine neon glow** (`ui/atmosphere.ts`): camera post-FX bloom + saturation
   ("everything glows") on WebGL, deeper vignette + saturated grade, optional CRT
   scanline toggle. Gracefully skipped on the Canvas renderer.
-- ✅ **Kenney CC0 drop-in pipeline** (`ui/kenneyAssets.ts`): enemies, projectiles,
-  pickups, and the floor accept CC0 art dropped into `public/kenney/` with no code
-  change; missing files fall back to procedural/placeholder art. See
-  `public/kenney/README.md` + `CREDITS.md`.
+- ✅ **Art drop-in pipeline** (`ui/kenneyAssets.ts`, `ui/playerSheet.ts`): enemies,
+  projectiles, pickups, the floor, and the **neon-city parallax skyline** all accept
+  art dropped into `public/kenney/` (manifest-gated) with no code change; missing
+  files fall back to procedural/placeholder art. Full per-slot spec in **`ART.md`**;
+  also `public/kenney/README.md` + `CREDITS.md`.
 - ✅ **Themed names + JP-vocab layer** (`data/balance.ts`, `systems/loadout.ts`):
   the otaku/fame skin with a `Vocab` ({jp, romaji, meaning}) label on every weapon,
   passive, the boss, enemies (`ENEMY_VOCAB`), and pickups (`PICKUP_VOCAB`). The
@@ -112,8 +113,11 @@ What remains for the full lush Edgerunners feel is real environment art to "wear
    default** so the striking neon wireframe grid (gaps 1–2 payoff) shows; flip on
    once a dark/tech/neon CC0 tile is dropped in. Needs the actual tile (Track A).
 4. ⏳ **Environment art.** Real neon-city background/parallax art (skyline
-   silhouettes, signage glow) to replace the placeholder rectangles. Delivers the
-   lush look; comes from the art pipeline (§4), not code.
+   silhouettes, signage glow). The drop-in **slot is now wired** (`backdrop.ts`
+   `PARALLAX_KEYS` + `public/kenney/parallax_{far,mid,near}.png`): present art renders
+   as scrolling tiled layers, absent → the procedural silhouettes. The art itself
+   still comes from the pipeline (§4 / see `ART.md`). Skyline prominence scales with
+   `RENDER.groundTilt`/`horizonFrac`.
 
 > Palette + glow (gaps 1–2) were pure config/code, needed no art, and get most of
 > the way to the Edgerunners feel on their own. Judge them in playtest before
@@ -160,7 +164,10 @@ In rough order; confirm before starting each:
 3. Second stage (Theme Park, or a neon-street stage leaning into the Edgerunners
    look) to prove the stage-config system with different content + tileset + enemy
    table.
-4. Puzzle Tiers B & C (place+particle, full assembly) — Tier A is built.
+4. ✅ Puzzle tiers: the minigame ships a level-based curriculum (`systems/puzzle.ts`
+   `modeOrder`) — vocab-recall (translate) → **full assembly (Tier C, `build`)** →
+   **place+particle (Tier B, `build` with decoy particles)** → **particle socket
+   (Tier A)**. All wired; tune the level ramps in `puzzle.ts`.
 5. Gameplay tweaks from playtesting (loop pacing, difficulty curve — minor).
 6. Later/hold: the "haunting" SRS requeue mechanic, meta-shop/permanent upgrades,
    more characters, bosses beyond the Collector.

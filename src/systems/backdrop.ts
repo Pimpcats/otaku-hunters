@@ -25,6 +25,12 @@ import { RENDER, DEPTH } from '../data/render';
 
 export const FLOOR_TEXTURE_KEY = 'floor_tex';
 
+// Optional neon-city parallax layers (far → near). Drop real art into public/kenney/
+// (parallax_far|mid|near.png) and list it in manifest.json; the loader registers it
+// under these keys and Backdrop renders horizontally-tiling layers instead of the
+// procedural silhouettes. Any missing layer simply isn't created.
+export const PARALLAX_KEYS = ['env_parallax_far', 'env_parallax_mid', 'env_parallax_near'] as const;
+
 const HORIZON_FULL = 0.15; // horizon screen-y fraction at tilt = 1
 const PERSP = 5; // perspective compression strength at tilt = 1
 const COLS = 18; // mesh columns across the screen
@@ -41,11 +47,33 @@ export class Backdrop {
   private sx: number[] = []; // screen x at each mesh column (bottom edge)
   private cols = COLS;
 
+  // Tiling parallax layers built from dropped-in skyline art (empty → procedural).
+  private skyline: { s: Phaser.GameObjects.TileSprite; strength: number; texH: number }[] = [];
+
   constructor(private scene: Phaser.Scene) {
     this.g = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.ground);
     this.parallax = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.grid);
+    this.buildSkyline();
     if (RENDER.floorTexture && scene.textures.exists(FLOOR_TEXTURE_KEY)) {
       this.buildFloorMesh();
+    }
+  }
+
+  /** Build tiling parallax layers from any dropped-in skyline art. None present →
+   *  drawParallax falls back to the procedural silhouettes. */
+  private buildSkyline(): void {
+    if (!RENDER.parallax) return;
+    const strengths = RENDER.parallaxStrength;
+    for (let i = 0; i < PARALLAX_KEYS.length; i++) {
+      const key = PARALLAX_KEYS[i];
+      if (!this.scene.textures.exists(key)) continue;
+      const img = this.scene.textures.get(key).getSourceImage() as { height: number };
+      const s = this.scene.add
+        .tileSprite(0, 0, W, img.height || H, key)
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(DEPTH.ground + 1 + i); // far background: above the sky gradient, behind the grid
+      this.skyline.push({ s, strength: strengths[i] ?? 0.3, texH: img.height || H });
     }
   }
 
@@ -254,7 +282,23 @@ export class Backdrop {
   private drawParallax(camX: number, camY: number, floorTop: number): void {
     const p = this.parallax;
     p.clear();
-    if (!RENDER.parallax || floorTop <= 1) return; // only meaningful once there's a back wall
+    if (!RENDER.parallax) return;
+
+    // Real skyline art (if dropped in): horizontally-tiling layers anchored at the
+    // horizon seam, drifting slower than the camera. Replaces the procedural rects.
+    if (this.skyline.length) {
+      const show = floorTop > 1;
+      for (const layer of this.skyline) {
+        layer.s.setVisible(show);
+        if (!show) continue;
+        layer.s.y = floorTop - layer.texH; // strip's bottom rests on the seam
+        layer.s.tilePositionX = camX * layer.strength;
+        layer.s.tilePositionY = -camY * layer.strength * 0.05;
+      }
+      return;
+    }
+
+    if (floorTop <= 1) return; // only meaningful once there's a back wall
     const layers = RENDER.parallaxStrength;
     for (let i = 0; i < layers.length; i++) {
       const strength = layers[i];

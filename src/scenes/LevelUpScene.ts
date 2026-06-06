@@ -110,7 +110,10 @@ export class LevelUpScene extends Phaser.Scene {
       this.renderSentence(cx);
       this.renderOptions(cx);
     } else if (this.puzzle.kind === 'build') {
-      this.renderPrompt(cx, 'Put the words in the right order', this.puzzle.promptEn);
+      const sub = this.puzzle.tier === 'B'
+        ? 'Build it — order the words AND pick the right particles'
+        : 'Put the words in the right order';
+      this.renderPrompt(cx, sub, this.puzzle.promptEn);
       this.renderBuild(cx);
     } else {
       this.renderTranslate(cx);

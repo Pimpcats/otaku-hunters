@@ -27,7 +27,7 @@
 import Phaser from 'phaser';
 import { TEX } from '../constants';
 import { dirTextureKey } from '../systems/facing';
-import { FLOOR_TEXTURE_KEY } from '../systems/backdrop';
+import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS } from '../systems/backdrop';
 
 /** A single, non-directional texture (projectile / pickup). */
 interface SingleAsset {
@@ -80,6 +80,36 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     pack: 'Pattern Pack / Tiny Town / Prototype Textures',
     url: 'https://kenney.nl/assets/pattern-pack',
     note: 'Seamless tiling floor for the perspective plane (Bible §3 gap 3). Dark/tech/neon-grid suits the Edgerunners look. MUST be seamless and power-of-two (128×128 or 256×256) so it tiles + mipmaps cleanly. Grayscale tiles best — the floor mesh tints them with RENDER.floorNear/floorFar.',
+  },
+
+  // Neon-city parallax skyline layers (far → near). Loaded straight onto the keys
+  // Backdrop reads; horizontally-tiling transparent strips. Any layer is optional.
+  {
+    kind: 'single',
+    id: 'parallaxFar',
+    file: 'parallax_far.png',
+    key: PARALLAX_KEYS[0],
+    pack: 'AI image tools / CC0 city silhouettes',
+    url: 'https://kenney.nl/assets/background-elements-redux',
+    note: 'Farthest skyline layer — hazy, low-contrast, distant towers. Wide & horizontally TILEABLE, transparent above the rooftops. e.g. ~960×220.',
+  },
+  {
+    kind: 'single',
+    id: 'parallaxMid',
+    file: 'parallax_mid.png',
+    key: PARALLAX_KEYS[1],
+    pack: 'AI image tools / CC0 city silhouettes',
+    url: 'https://kenney.nl/assets/background-elements-redux',
+    note: 'Mid skyline layer — buildings + neon signage glow. Tileable + transparent. e.g. ~960×260.',
+  },
+  {
+    kind: 'single',
+    id: 'parallaxNear',
+    file: 'parallax_near.png',
+    key: PARALLAX_KEYS[2],
+    pack: 'AI image tools / CC0 city silhouettes',
+    url: 'https://kenney.nl/assets/background-elements-redux',
+    note: 'Nearest skyline layer — tallest, darkest, boldest neon. Tileable + transparent. e.g. ~960×320.',
   },
 
   // ── Enemies (directional) ──────────────────────────────────────────────────
