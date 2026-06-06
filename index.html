@@ -37,9 +37,11 @@
         image-rendering: pixelated;
         touch-action: none;
       }
-      /* Otaku Hunter is a landscape (16:9) game — a portrait phone can only
+      /* Otaku Hunter is a landscape (16:9) game — a portrait PHONE can only
          letterbox it into a tiny strip, which looks broken. In portrait we hide
-         the game and ask the player to rotate; landscape fills the screen. */
+         the game and ask the player to rotate; landscape fills the screen.
+         IMPORTANT: gate on touch devices only (pointer: coarse) so a desktop
+         browser in a tall/narrow window is never blocked. */
       #rotate {
         position: fixed;
         inset: 0;
@@ -71,7 +73,7 @@
         0%, 40% { transform: rotate(0deg); }
         60%, 100% { transform: rotate(-90deg); }
       }
-      @media (orientation: portrait) {
+      @media (orientation: portrait) and (pointer: coarse) {
         #rotate { display: flex; }
         #game { visibility: hidden; }
       }
