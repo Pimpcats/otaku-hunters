@@ -133,7 +133,7 @@ export class Backdrop {
     for (let j = 0; j <= R; j++) {
       const y = this.rowY(this.rows[j], tilt, floorTop);
       const fade = Phaser.Math.Clamp((y - floorTop) / (H - floorTop), 0, 1); // 1 near, 0 horizon
-      const col = lerpColor(RENDER.floorFar, RENDER.floorNear, fade); // palette tint by depth
+      const col = lerpColor(RENDER.floorFar, RENDER.floorTextureTint, fade); // art shows true near, hazes to dark at horizon
       // Keep the floor opaque across most of its depth; only fade the tiles into
       // the gradient in the top band near the horizon (distance haze, and it hides
       // the worst far-distance minification).
