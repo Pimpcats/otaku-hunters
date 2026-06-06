@@ -66,10 +66,10 @@ stand-in works) · ☐ missing (drop zone empty).
 |---|---|---|---|
 | `arcade_floor_tile.png` | The Arcade floor | ✓ stored | ☐ OFF — has baked perspective; procedural TRON grid active (`floorTexture=false`). Flip on with a FLAT seamless tile. |
 | `floor_placeholder.png` | grayscale paver fallback | ▣ placeholder | yes (used only if the tile is removed) |
-| `neon_street_tile_a.webp` (512×512) | Neon Street floor variant A (manhole, cyan puddle, 未来最高) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
-| `neon_street_tile_b.webp` (512×512) | Neon Street floor variant B (magenta streaks, sewer grate, stickers) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
-| `neon_street_tile_c.webp` (512×512) | Neon Street floor variant C (yellow chevrons, コレクション最高, gutter) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
-| `neon_street_tile_d.webp` (512×512) | Neon Street floor variant D (crosswalk, pins, puddles) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
+| `neon_street_tile_a.webp` (512×512) | Neon Street floor variant A (manhole, cyan puddle) | ✓ ready | ✓ wired (variant atlas) |
+| `neon_street_tile_b.webp` (512×512) | Neon Street floor variant B (magenta glow, sewer grate, stickers) | ✓ ready | ✓ wired (variant atlas) |
+| `neon_street_tile_c.webp` (512×512) | Neon Street floor variant C (yellow chevrons, drainage gutter) | ✓ ready | ✓ wired (variant atlas) |
+| `neon_street_tile_d.webp` (512×512) | Neon Street floor variant D (crosswalk stripes, pins, puddles) | ✓ ready | ✓ wired (variant atlas) |
 | `neonstreet_floor_tile.webp` (1254×1254) | (older single neon-street tile) | ✓ stored | superseded by the A–D variant set above |
 | `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
 
@@ -77,9 +77,7 @@ stand-in works) · ☐ missing (drop zone empty).
 > are both on, the floor mesh composes an N×N atlas (`floorVariantAtlas`, default 4×4) where
 > each cell deterministically picks one of the A–D tiles (seeded by cell position) — killing
 > the single-tile repeat. Defaults **OFF**: the Arcade stage keeps the procedural neon grid;
-> this turns on for the Neon Street stage (roadmap Phase 6). ⚠ **The provided A–D tiles have a
-> baked-in "A"/"B"/"C"/"D" label in the top-left corner** (annotation, not part of the tile) —
-> they will repeat on the floor until replaced with clean (unlabelled) versions.
+> this turns on for the Neon Street stage (roadmap Phase 6). Tiles are clean/unlabelled.
 
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)
 | File | Use | Status | Wired |
