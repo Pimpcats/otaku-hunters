@@ -15,7 +15,7 @@ import { GRADE_STACKS, NOPE_HEAL, type Grade } from '../data/balance';
 import { PlayerLoadout, type UpgradeDef } from '../systems/loadout';
 import { recordGrade } from '../systems/srs';
 import { readingOf, toRomaji } from '../systems/romaji';
-import { speakJa } from '../audio/tts';
+import { speak, stopAudio } from '../audio/tts';
 import type { LevelUpResult } from './RunScene';
 
 interface LevelUpData {
@@ -76,6 +76,7 @@ export class LevelUpScene extends Phaser.Scene {
 
   create(data: LevelUpData) {
     this.payload = data;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopAudio); // never leave a clip ringing
     this.firstTry = true;
     this.solved = false;
     this.phase = 'puzzle';
@@ -295,12 +296,12 @@ export class LevelUpScene extends Phaser.Scene {
       const t = this.add.text(slot.x, slot.rect.y - 7, expected.jp, { fontFamily: 'system-ui', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(6);
       if (t.width > slot.width - 8) t.setScale((slot.width - 8) / t.width);
       this.romaji(slot.x, slot.rect.y + 12, expected.romaji ?? readingOf(expected.jp, expected.pos), 11);
-      speakJa(expected.jp);
+      speak(expected.jp);
 
       this.buildPlaced++;
       if (this.buildPlaced === this.buildOrder.length) {
         this.solved = true;
-        speakJa(sentence.jp);
+        speak(sentence.jp);
         this.toUpgrades(gradeFromBuild(this.buildMistakes, false));
       }
     } else {
@@ -337,7 +338,7 @@ export class LevelUpScene extends Phaser.Scene {
       .setDepth(5);
     // reading under the kana prompt (jp→en direction)
     if (big) this.romaji(cx, 190, readingOf(p.word.jp, p.word.pos, p.word.romaji), 18);
-    if (big) speakJa(p.prompt);
+    if (big) speak(p.prompt);
 
     const isJpOption = p.direction === 'en2jp';
     const btnW = 440;
@@ -375,7 +376,7 @@ export class LevelUpScene extends Phaser.Scene {
     if (opt === this.puzzle.correct) {
       this.solved = true;
       bg.setFillStyle(COLORS.correct);
-      speakJa(this.puzzle.speak);
+      speak(this.puzzle.speak);
       this.toUpgrades(gradeFromAttempts(this.firstTry, false));
     } else {
       this.firstTry = false;
@@ -403,6 +404,7 @@ export class LevelUpScene extends Phaser.Scene {
 
   private choose(opt: string, container: Phaser.GameObjects.Container) {
     if (this.phase !== 'puzzle' || !this.puzzle || this.puzzle.kind !== 'particle') return;
+    speak(opt); // reinforce the particle's sound on selection (sentence plays on a correct solve)
     const bg = container.getData('bg') as Phaser.GameObjects.Rectangle;
     if (opt === this.puzzle.correct) {
       this.solved = true;
@@ -412,7 +414,7 @@ export class LevelUpScene extends Phaser.Scene {
       this.socketBox.setFillStyle(COLORS.correct).setStrokeStyle(3, 0x9affc0);
       this.tweens.killTweensOf(this.socketBox);
       this.socketBox.setScale(1);
-      speakJa(this.puzzle.sentence.jp);
+      speak(this.puzzle.sentence.jp);
       this.toUpgrades(gradeFromAttempts(this.firstTry, false));
     } else {
       this.firstTry = false;
@@ -486,6 +488,21 @@ export class LevelUpScene extends Phaser.Scene {
     const desc = this.add.text(0, 12, up.desc, { fontFamily: 'system-ui', fontSize: '15px', color: '#c8cde8', align: 'center', wordWrap: { width: w - 28 } }).setOrigin(0.5);
     const lvl = this.add.text(0, h / 2 - 26, levelStr, { fontFamily: 'system-ui', fontSize: '16px', color: '#' + accent.toString(16).padStart(6, '0'), fontStyle: 'bold' }).setOrigin(0.5);
     container.add([bg, kind, name, desc, lvl]);
+
+    // Vocab line — names double as Japanese lessons (the learning hook).
+    if (up.vocab) {
+      const v = up.vocab;
+      const vocab = this.add
+        .text(0, -h / 2 + 88, `${v.jp}  ${v.romaji} — ${v.meaning}`, {
+          fontFamily: 'system-ui',
+          fontSize: '13px',
+          color: '#8aa0c8',
+          align: 'center',
+          wordWrap: { width: w - 20 },
+        })
+        .setOrigin(0.5);
+      container.add(vocab);
+    }
 
     bg.on('pointerover', () => container.setScale(1.04));
     bg.on('pointerout', () => container.setScale(1));

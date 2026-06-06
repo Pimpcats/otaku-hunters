@@ -140,9 +140,18 @@ export interface WeaponLevelStats {
   range: number; // targeting + travel distance in px (before ProjSpeed)
 }
 
+/** A vocabulary label so names double as Japanese lessons.
+ *  Format mirrors the rest of the game: 日本語 Rōmaji — "meaning". */
+export interface Vocab {
+  jp: string;
+  romaji: string;
+  meaning: string;
+}
+
 export interface WeaponDef {
   id: string;
   name: string;
+  vocab?: Vocab; // themed JP label shown in the UI; names double as vocab
   kind: 'projectile' | 'aura';
   maxLevel: number;
   level: (L: number) => WeaponLevelStats;
@@ -164,7 +173,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // Starter (Kohai): fires the nearest enemy. Reliable single-target → light pierce.
   pocky: {
     id: 'pocky',
-    name: 'Pocky Shooter',
+    name: 'Okashi Barrage',
+    vocab: { jp: 'お菓子', romaji: 'Okashi', meaning: 'sweets / snacks' },
     kind: 'projectile',
     maxLevel: 8,
     evolvesTo: 'pocky_evo',
@@ -184,7 +194,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // Sensei: a pulsing ring that hits everything around you (crowd control).
   aura: {
     id: 'aura',
-    name: 'Otaku Aura',
+    name: 'Ōen Wave',
+    vocab: { jp: '応援', romaji: 'Ōen', meaning: 'cheer / support' },
     kind: 'aura',
     maxLevel: 8,
     evolvesTo: 'aura_evo',
@@ -203,6 +214,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   shuriken: {
     id: 'shuriken',
     name: 'Shuriken Storm',
+    vocab: { jp: '手裏剣', romaji: 'Shuriken', meaning: 'throwing star' },
     kind: 'projectile',
     maxLevel: 8,
     evolvesTo: 'shuriken_evo',
@@ -229,7 +241,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   //    mid-game trivial.
   pocky_evo: {
     id: 'pocky_evo',
-    name: 'Pocky Overdrive',
+    name: 'Tabehōdai',
+    vocab: { jp: '食べ放題', romaji: 'Tabehōdai', meaning: 'all-you-can-eat' },
     kind: 'projectile',
     maxLevel: 1,
     projTexture: TEX.pocky,
@@ -239,7 +252,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   aura_evo: {
     id: 'aura_evo',
-    name: 'Cosmic Otaku Aura',
+    name: 'Tandoku Live',
+    vocab: { jp: '単独ライブ', romaji: 'Tandoku Raibu', meaning: 'solo concert' },
     kind: 'aura',
     maxLevel: 1,
     tint: 0xff7ae0,
@@ -247,7 +261,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   shuriken_evo: {
     id: 'shuriken_evo',
-    name: 'Thousand Cuts',
+    name: 'Senbon Storm',
+    vocab: { jp: '千本', romaji: 'Senbon', meaning: 'a thousand' },
     kind: 'projectile',
     maxLevel: 1,
     projTexture: TEX.shuriken,
@@ -259,8 +274,19 @@ export const WEAPONS: Record<string, WeaponDef> = {
 };
 
 // Evolutions only unlock once the player is deep enough into the run — keeps
-// the spike a late-game payoff, not an early build-defining freebie.
+// the spike a late-game payoff, not an early build-defining freebie. (This gates
+// the level-up DRAFT path; the Gacha capsule below is its own, ungated trigger.)
 export const EVOLVE_MIN_LEVEL = 40;
+
+// ── 「ガチャ」Gacha capsule (the themed evolution chest / signature payoff) ─────
+// A capsule drops occasionally from kills (and one guaranteed early so it's seen).
+// Collecting it claims an evolution if one is mechanically eligible; otherwise it
+// pays out a "never nothing" consolation so the pull always feels good.
+export const GACHA = {
+  killChance: 0.006, // base per-kill drop chance (× Star Luck)
+  firstDropTime: 180, // seconds → one guaranteed capsule so the payoff is seen
+  fallbackXpFrac: 0.5, // no evolution to claim → full heal + this fraction of the next level as XP
+};
 
 // ── Enemies: base stats × time multipliers ───────────────────────────────────
 export interface EnemyBase {
@@ -273,6 +299,49 @@ export interface EnemyBase {
 export const ENEMY_BASE: Record<string, EnemyBase> = {
   RushFan: { hp: 6, contact: 8, speed: 70, xp: 1 },
   MerchMule: { hp: 14, contact: 6, speed: 56, xp: 3 },
+  // Themed behavior-AI roster (§7). Stats are placeholders — tune by playtest.
+  AnxiousOne: { hp: 8, contact: 7, speed: 84, xp: 2 }, // skittish, fast
+  IdolWota: { hp: 12, contact: 7, speed: 68, xp: 3 }, // swaying, hard to pin
+  TooCool: { hp: 16, contact: 9, speed: 60, xp: 4 }, // shrugs off weak hits
+  CameraGremlin: { hp: 10, contact: 6, speed: 64, xp: 3 }, // ranged flasher
+  Lurker: { hp: 18, contact: 8, speed: 50, xp: 4 }, // powers up if ignored
+  Glomper: { hp: 40, contact: 12, speed: 38, xp: 6 }, // slow tank, latches
+};
+
+// Per-archetype behavior tunables (all live-tunable; movement/AI in archetypes.ts).
+export const BEHAVIOR = {
+  anxious: { panicRange: 130, fleeMs: 700, approachMul: 1.15 }, // rush, then bolt
+  idolWota: { swaySpeed: 0.012, swayAmp: 0.85 }, // lateral concert sway (rad)
+  lurker: { farRange: 300, buffRate: 0.05, buffMax: 1.5, crawl: 0.45 }, // ramp while ignored
+  glomper: { latchRange: 40, slow: 0.45 }, // multiplies player move speed while latched
+  tooCool: { weakHit: 8, glintEveryMs: 2200, glintMs: 600, swagger: 0.7 }, // invuln pulses
+  cameko: { standRange: 230, flashEveryMs: 3000 }, // stop-and-flash
+};
+
+// Themed bestiary labels — the superfan archetypes named so they teach vocab.
+// Data only for now (surfaced in HUD/bestiary as that UI lands); the behavior-AI
+// roster (Anxious One, Camera Gremlin, …) is next-phase. JP names per the framework.
+export const ENEMY_VOCAB: Record<string, { name: string; vocab: Vocab }> = {
+  RushFan: { name: 'Fan', vocab: { jp: 'ファン', romaji: 'Fan', meaning: 'fan' } },
+  MerchMule: { name: 'Scalper', vocab: { jp: '転売ヤー', romaji: 'Tenbaiyā', meaning: 'scalper / reseller' } },
+  AnxiousOne: { name: 'Shy Fan', vocab: { jp: '陰キャ', romaji: 'Inkya', meaning: 'shy / introvert type' } },
+  TooCool: { name: 'Cool Fan', vocab: { jp: '陽キャ', romaji: 'Yōkya', meaning: 'cool / outgoing type' } },
+  CameraGremlin: { name: 'Camera Otaku', vocab: { jp: 'カメコ', romaji: 'Kameko', meaning: 'camera-otaku' } },
+  IdolWota: { name: 'Idol Stan', vocab: { jp: 'ヲタ芸', romaji: 'Wotagei', meaning: 'idol-fan dance' } },
+  Lurker: { name: 'Old Guard', vocab: { jp: '古参', romaji: 'Kosan', meaning: 'old-timer fan' } },
+  Glomper: { name: 'Whale', vocab: { jp: '重課金', romaji: 'Jūkakin', meaning: 'whale / heavy spender' } },
+  ultimate_collector: {
+    name: 'The Ultimate Collector',
+    vocab: { jp: '究極コレクター', romaji: 'Kyūkyoku Korekutā', meaning: 'ultimate collector' },
+  },
+};
+
+// Themed pickup / currency labels (§8). Data for HUD/flavor + the learning layer.
+export const PICKUP_VOCAB: Record<string, Vocab> = {
+  xp: { jp: 'ハート', romaji: 'Hāto', meaning: 'heart — fan-love' },
+  word: { jp: '単語', romaji: 'Tango', meaning: 'vocabulary word' },
+  coin: { jp: '円', romaji: 'En', meaning: 'yen' },
+  gacha: { jp: 'ガチャ', romaji: 'Gacha', meaning: 'capsule-toy / loot draw' },
 };
 
 // Time multipliers (t in seconds, m in minutes). Front-loaded so the pressure
@@ -338,7 +407,7 @@ export const NOPE_HEAL = 12; // hp, so a wrong answer still feels rewarding
 // ── Boss ─────────────────────────────────────────────────────────────────────
 export const BOSS = {
   id: 'ultimate_collector',
-  name: 'The Ultimate Collector',
+  name: '究極コレクター — The Ultimate Collector',
   hp: 75000, // tuned so a 20-min build clears it in ~30–45s (see sim)
   contact: 28,
   speed: 64,

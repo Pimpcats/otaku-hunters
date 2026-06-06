@@ -15,8 +15,30 @@ export class Spawner {
     this.spawn = spawn;
   }
 
+  // Weighted, time-gated roster. RushFan stays dominant so the swarm reads
+  // clearly; the behavior-AI specials trickle in as the run escalates. Mules are
+  // drawn first off their own share (loot mobs), then the rest by weight.
+  private static readonly TABLE: { key: string; weight: number; minM: number }[] = [
+    { key: 'RushFan', weight: 100, minM: 0 },
+    { key: 'AnxiousOne', weight: 22, minM: 2 },
+    { key: 'IdolWota', weight: 18, minM: 4 },
+    { key: 'TooCool', weight: 14, minM: 6 },
+    { key: 'CameraGremlin', weight: 10, minM: 8 },
+    { key: 'Lurker', weight: 9, minM: 10 },
+    { key: 'Glomper', weight: 9, minM: 12 },
+  ];
+
   private pickKey(t: number): string {
-    return Math.random() < muleShare(t) ? 'MerchMule' : 'RushFan';
+    if (Math.random() < muleShare(t)) return 'MerchMule';
+    const m = t / 60;
+    const avail = Spawner.TABLE.filter((s) => m >= s.minM);
+    const total = avail.reduce((sum, s) => sum + s.weight, 0);
+    let roll = Math.random() * total;
+    for (const s of avail) {
+      roll -= s.weight;
+      if (roll <= 0) return s.key;
+    }
+    return 'RushFan';
   }
 
   /** dt in ms, t = seconds since run start. */
