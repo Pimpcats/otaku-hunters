@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { generatePlaceholderTextures } from '../ui/textures';
 import { bakePlayerSheets, loadPlayerSheets, registerPlayerAnims, loadHeroSheets, bakeHeroSheets } from '../ui/playerSheet';
 import { applyKenneyAssets, loadKenneyAssets } from '../ui/kenneyAssets';
+import { loadEnemyWalkSheets, bakeEnemyWalkSheets } from '../ui/enemyAnims';
 import { loadVoiceManifest, loadVoiceFor } from '../audio/tts';
 import { CHARACTERS } from '../data/characters';
 import { getContentIndex } from '../data/contentIndex';
@@ -20,6 +21,9 @@ export class BootScene extends Phaser.Scene {
     // Optional CC0 Kenney drop-ins for enemies / projectiles / pickups / floor.
     // Any missing file is safe; that slot keeps its procedural/placeholder art.
     loadKenneyAssets(this);
+    // Animated-enemy walk sheets (optional; manifest-gated). Must follow
+    // loadKenneyAssets — it queues the art-manifest json these read to self-gate.
+    loadEnemyWalkSheets(this);
     // Tiling floor texture for the 2.5D ground plane (placeholder; see CREDITS.md).
     // A Kenney floor.png (loaded above) overrides this in create(); if neither is
     // present the backdrop falls back to the wireframe grid.
@@ -43,6 +47,7 @@ export class BootScene extends Phaser.Scene {
     bakePlayerSheets(this);
     registerPlayerAnims(this);
     bakeHeroSheets(this); // slice the rect hero sheets over their facing keys (overrides procedural)
+    bakeEnemyWalkSheets(this); // bake walk sheets → per-direction enemy walk anims (applyFacing uses them)
 
     // Build the content index once up front so a malformed lessons.js surfaces
     // in the console here rather than mid-run (guardrail §8.7: never blocks).

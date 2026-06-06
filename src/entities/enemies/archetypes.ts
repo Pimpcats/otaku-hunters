@@ -20,6 +20,7 @@ export interface EnemyArchetype {
   scale?: number; // display + body scale at spawn (default 1)
   hitRadius?: number; // physics circle radius at spawn (default 9)
   weakHit?: number; // hits below this damage are shrugged off (Too-Cool)
+  reverseFacing?: boolean; // shows the OPPOSITE up/down facing — Too-Cool walks backwards (too cool to face where he's going)
 }
 
 export interface EnemyData {
@@ -151,6 +152,7 @@ export const ARCHETYPES: Record<string, EnemyArchetype> = {
     color: COLORS.tooCool,
     dropsWord: false,
     weakHit: BEHAVIOR.tooCool.weakHit,
+    reverseFacing: true, // walks backwards: moving down shows his back (up), moving up shows his face (down)
     ai: (e, player, dt) => {
       const d = e.getData('edata') as EnemyData;
       const spd = e.getData('speed') as number;

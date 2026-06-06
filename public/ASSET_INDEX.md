@@ -34,10 +34,12 @@ stand-in works) · ☐ missing (drop zone empty).
 ## Enemies — `public/sprites/enemies/` (green-screen 4-view sheets ~1983×793, sliced)
 | File | Enemy | Status | Wired |
 |---|---|---|---|
-| `rushfan_4dir.png` | Rushing Fan ファン (red hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed + rect-sliced ~46px |
+| `rushfan_4dir.png` | Rushing Fan ファン (red hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed + rect-sliced ~46px (static fallback) |
+| `rushfan_walk.webp` | Rushing Fan ファン — **WALK animation** | ✓ **ready/active** | 4×4 @313 sheet → baked walk anims (down/up/side @ ~10fps); standard facing |
 | `merchmule_4dir.png` | Merch-Mule 転売ヤー (gold jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~50px (bulkier) |
 | `anxious_4dir.png` | Shy Fan 陰キャ (dark-blue hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
-| `toocool_4dir.png` | Cool Fan 陽キャ (purple jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `toocool_4dir.png` | Cool Fan 陽キャ (purple jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px (static fallback) |
+| `toocool_walk.webp` | Cool Fan 陽キャ — **WALK animation** | ✓ **ready/active** | 4×4 @313 sheet → baked walk anims (~8fps); **reversed facing** (walks backwards — moving toward you shows his back) |
 | `camera_4dir.png` | Camera Otaku カメコ (teal, crouching) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
 | `wota_4dir.png` | Idol Stan ヲタ芸 (white happi) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
 | `lurker_4dir.png` | Old Guard 古参 (olive jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px (grows with buff) |
