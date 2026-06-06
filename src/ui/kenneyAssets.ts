@@ -22,7 +22,7 @@
 
 import Phaser from 'phaser';
 import { TEX } from '../constants';
-import { dirTextureKey } from '../systems/facing';
+import { dirTextureKey, type FacingSet } from '../systems/facing';
 import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS } from '../systems/backdrop';
 
 /** A single, non-directional texture (floor/parallax/projectile/pickup). */
@@ -42,6 +42,15 @@ interface DirAsset {
   base: string; // base texture key; `${base}_down|_up|_side` are populated
   sideFlip: boolean; // true if the source faces LEFT (baked `side` must face right)
   note: string;
+  // Optional 4-view sheet: slice front/back/side-left by explicit x-ranges within a
+  // vertical band, downscaled to `displayHeight` px (vs. baking the whole image).
+  sheet?: {
+    viewY: number;
+    viewH: number;
+    displayHeight: number; // baked frame height (enemies are smaller than heroes)
+    views: { down: [number, number]; up: [number, number]; side: [number, number] };
+    chromaKey?: boolean; // source has a solid green background → key it transparent first
+  };
 }
 
 /** Overrides a texture key another loader already owns (the floor placeholder). */
@@ -73,8 +82,24 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
   { kind: 'single', id: 'parallaxNear', path: 'textures/parallax/arcade_near.webp', key: PARALLAX_KEYS[2], note: 'Near skyline (arcade), 1920×500, horizontally seamless; bottom meets the floor.' },
 
   // ── Enemies (sprites/enemies) — single front-facing frame, mirrored to facings ─
-  { kind: 'dir', id: 'rushFan', path: 'sprites/enemies/rushfan.png', base: TEX.rushFan, sideFlip: false, note: 'Rushing Fan ファン, ~48px, transparent, faces down.' },
-  { kind: 'dir', id: 'merchMule', path: 'sprites/enemies/merchmule.png', base: TEX.merchMule, sideFlip: false, note: 'Merch-Mule 転売ヤー, ~48px, faces down.' },
+  {
+    kind: 'dir',
+    id: 'rushFan',
+    path: 'sprites/enemies/rushfan.webp',
+    base: TEX.rushFan,
+    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
+    note: 'Rushing Fan ファン — 4-view sheet (1983×793), rect-sliced + downscaled to ~44px.',
+    sheet: { viewY: 167, viewH: 440, displayHeight: 44, views: { down: [112, 460], up: [585, 915], side: [1032, 1401] } },
+  },
+  {
+    kind: 'dir',
+    id: 'merchMule',
+    path: 'sprites/enemies/merchmule.webp',
+    base: TEX.merchMule,
+    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
+    note: 'Merch-Mule 転売ヤー — 4-view sheet (1983×793), green-screened; keyed + rect-sliced, ~50px (bulkier).',
+    sheet: { viewY: 152, viewH: 482, displayHeight: 50, views: { down: [62, 456], up: [559, 926], side: [1011, 1419] }, chromaKey: true },
+  },
   { kind: 'dir', id: 'anxious', path: 'sprites/enemies/anxious.png', base: TEX.anxious, sideFlip: false, note: 'Shy Fan 陰キャ, ~48px, faces down.' },
   { kind: 'dir', id: 'tooCool', path: 'sprites/enemies/toocool.png', base: TEX.tooCool, sideFlip: false, note: 'Cool Fan 陽キャ, ~48px, faces down.' },
   { kind: 'dir', id: 'cameko', path: 'sprites/enemies/camera.png', base: TEX.cameko, sideFlip: false, note: 'Camera Otaku カメコ, ~48px, faces down.' },
@@ -151,6 +176,81 @@ function bakeImageTo(scene: Phaser.Scene, srcKey: string, destKey: string, flip:
   canvasTex.refresh();
 }
 
+/** Slice a source rectangle of `srcKey` and bake it (downscaled) onto `destKey`. */
+function bakeRectScaled(
+  scene: Phaser.Scene,
+  srcKey: string,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+  destW: number,
+  destH: number,
+  destKey: string,
+  flip: boolean,
+): void {
+  const img = scene.textures.get(srcKey).getSourceImage() as CanvasImageSource;
+  if (scene.textures.exists(destKey)) scene.textures.remove(destKey);
+  const t = scene.textures.createCanvas(destKey, destW, destH);
+  if (!t) return;
+  const ctx = t.getContext();
+  ctx.clearRect(0, 0, destW, destH);
+  ctx.imageSmoothingEnabled = true; // smooth the big→small downscale
+  ctx.save();
+  if (flip) {
+    ctx.translate(destW, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, destW, destH);
+  ctx.restore();
+  t.refresh();
+}
+
+/** Make a copy of `srcKey` with its solid green (chroma) background keyed to
+ *  transparent, at full resolution; returns the new texture key (cached). */
+function keyedSource(scene: Phaser.Scene, srcKey: string): string {
+  const destKey = `${srcKey}_keyed`;
+  if (scene.textures.exists(destKey)) return destKey;
+  const img = scene.textures.get(srcKey).getSourceImage() as CanvasImageSource & { width: number; height: number };
+  const w = img.width;
+  const h = img.height;
+  const t = scene.textures.createCanvas(destKey, w, h);
+  if (!t) return srcKey;
+  const ctx = t.getContext();
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, w, h);
+  const px = data.data;
+  for (let i = 0; i < px.length; i += 4) {
+    // pure chroma green only (keeps teal/cyan neon: those have high blue)
+    if (px[i + 1] > 150 && px[i] < 120 && px[i + 2] < 120) px[i + 3] = 0;
+  }
+  ctx.putImageData(data, 0, 0);
+  t.refresh();
+  return destKey;
+}
+
+/** Bake a directional asset's three facing keys — from a 4-view sheet (sliced +
+ *  downscaled) when `a.sheet` is set, else from the single source image. */
+function bakeDir(scene: Phaser.Scene, a: DirAsset, srcKey: string): void {
+  if (a.sheet) {
+    const s = a.sheet;
+    const src = s.chromaKey ? keyedSource(scene, srcKey) : srcKey;
+    const cut = (v: [number, number], facing: FacingSet, flip: boolean) => {
+      const sw = v[1] - v[0];
+      const destH = s.displayHeight;
+      const destW = Math.max(1, Math.round(sw * (destH / s.viewH)));
+      bakeRectScaled(scene, src, v[0], s.viewY, sw, s.viewH, destW, destH, dirTextureKey(a.base, facing), flip);
+    };
+    cut(s.views.down, 'down', false);
+    cut(s.views.up, 'up', false);
+    cut(s.views.side, 'side', a.sideFlip);
+    return;
+  }
+  bakeImageTo(scene, srcKey, dirTextureKey(a.base, 'down'), false);
+  bakeImageTo(scene, srcKey, dirTextureKey(a.base, 'up'), false);
+  bakeImageTo(scene, srcKey, dirTextureKey(a.base, 'side'), a.sideFlip);
+}
+
 /**
  * Bake every loaded source onto its target texture key(s). Call in `create()`
  * BEFORE `generatePlaceholderTextures(scene)` so the generator's `textures.exists()`
@@ -171,9 +271,7 @@ export function applyKenneyAssets(scene: Phaser.Scene): void {
     if (a.kind === 'override') {
       bakeImageTo(scene, srcKey, a.destKey, false);
     } else {
-      bakeImageTo(scene, srcKey, dirTextureKey(a.base, 'down'), false);
-      bakeImageTo(scene, srcKey, dirTextureKey(a.base, 'up'), false);
-      bakeImageTo(scene, srcKey, dirTextureKey(a.base, 'side'), a.sideFlip);
+      bakeDir(scene, a, srcKey);
     }
     applied++;
   }
