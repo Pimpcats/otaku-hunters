@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 // ── config (tunable; env overrides) ───────────────────────────────────────────
 const VOICEVOX_URL = process.env.VOICEVOX_URL ?? 'http://localhost:50021';
-const SPEAKER_ID = Number(process.env.SPEAKER_ID ?? 3); // default Zundamon (normal); see --list-speakers
+const SPEAKER_ID = Number(process.env.SPEAKER_ID ?? 0); // default 四国めたん あまあま (sweet); see --list-speakers
 const SLOW_SPEED = Number(process.env.SLOW_SPEED ?? 0.7); // speedScale for slow versions
 const GENERATE_SLOW = (process.env.GENERATE_SLOW ?? 'true') !== 'false';
 const REQUEST_DELAY_MS = 100; // be gentle on the local engine

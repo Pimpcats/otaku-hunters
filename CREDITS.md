@@ -30,7 +30,7 @@ externally-sourced → CC0 / license-compatible only).
 
 ## Audio
 Voice clips generated with [VOICEVOX](https://voicevox.hiroshiba.jp/) — free, open-source Japanese text-to-speech.
-Character voice: **VOICEVOX:四国めたん** (Shikoku Metan), style id 2 (ノーマル / normal).
+Voice: 四国めたん (Shikoku Metan) あまあま style via VOICEVOX — https://voicevox.hiroshiba.jp/ (speaker id 0).
 VOICEVOX is provided under the LGPL license. Individual character voice terms apply — see https://voicevox.hiroshiba.jp/ for details.
 
 Clips live in `public/audio/` with a `manifest.json` (`{ "clips": { "<jp>": { "n", "s"? } } }`)
