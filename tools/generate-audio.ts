@@ -12,12 +12,12 @@
 // from https://voicevox.hiroshiba.jp/) and Node 18+. ffmpeg is optional (used to
 // emit .mp3; without it the script saves .wav and notes so).
 //
-// Usage:
-//   npx ts-node tools/generate-audio.ts                # generate (incremental)
-//   npx ts-node tools/generate-audio.ts --list-speakers # browse voices + ids
-//   SPEAKER_ID=8 npx ts-node tools/generate-audio.ts    # pick a voice
-//   GENERATE_SLOW=false npx ts-node tools/generate-audio.ts
-// (If your ts-node setup balks on ESM, `npx tsx tools/generate-audio.ts` also works.)
+// Usage (npm scripts wrap these with tsx so no global ts-node is needed):
+//   npm run audio                       # generate (incremental)
+//   npm run audio:speakers              # browse voices + ids
+//   SPEAKER_ID=8 npm run audio          # pick a voice
+//   GENERATE_SLOW=false npm run audio   # skip slow versions
+// Or directly: `npx tsx tools/generate-audio.ts` / `npx ts-node tools/generate-audio.ts`.
 
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
