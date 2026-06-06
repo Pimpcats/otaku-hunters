@@ -48,7 +48,7 @@ interface SheetDef {
 const SHEETS: SheetDef[] = [
   {
     key: 'sheet_roster',
-    file: 'roster_sheet.webp',
+    file: 'sprites/heroes/_legacy/roster_sheet.webp',
     frameWidth: 192,
     frameHeight: 256,
     displayHeight: 54,
@@ -62,7 +62,7 @@ const SHEETS: SheetDef[] = [
   },
   {
     key: 'sheet_goth',
-    file: 'goth_girl.webp',
+    file: 'sprites/heroes/_legacy/goth_girl.webp',
     frameWidth: 256,
     frameHeight: 341,
     displayHeight: 56,

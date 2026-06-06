@@ -6,28 +6,21 @@ and what's safe to ship.
 
 | Asset | Path | Source | License | Notes |
 |-------|------|--------|---------|-------|
-| Floor tile (placeholder) | `public/textures/floor_placeholder.png` | Procedurally generated for this repo (`tools`/build script) | CC0 / public domain (owned) | **Stand-in.** The brief asked for a CC0 tile from [kenney.nl](https://kenney.nl/assets) (e.g. a tile/pavement pattern), but this sandbox's network policy blocks outbound to `kenney.nl` (`403 host_not_allowed`), so a seamless 128×128 grayscale paver was generated in-engine instead. It's grayscale on purpose — the floor mesh tints it with the in-game `RENDER.floorNear`/`floorFar` palette. To swap in a real Kenney tile later, just replace this file (keep it seamless/tileable; power-of-two like 128×128 or 256×256 so it repeats), update this row, and no code changes are needed. |
+| Floor tile (placeholder) | `public/textures/floors/floor_placeholder.png` | Procedurally generated for this repo (`tools`/build script) | CC0 / public domain (owned) | **Stand-in.** The brief asked for a CC0 tile from [kenney.nl](https://kenney.nl/assets) (e.g. a tile/pavement pattern), but this sandbox's network policy blocks outbound to `kenney.nl` (`403 host_not_allowed`), so a seamless 128×128 grayscale paver was generated in-engine instead. It's grayscale on purpose — the floor mesh tints it with the in-game `RENDER.floorNear`/`floorFar` palette. To swap in a real Kenney tile later, just replace this file (keep it seamless/tileable; power-of-two like 128×128 or 256×256 so it repeats), update this row, and no code changes are needed. |
 
-## Kenney (CC0) drop-in slots — wired, not yet filled
-A general drop-in pipeline for CC0 [Kenney](https://kenney.nl/assets) art now backs
-the enemies, projectiles, pickups, and floor (`src/ui/kenneyAssets.ts`; loaded in
-`BootScene`). Files go in `public/kenney/` under fixed names and are used with **no
-code change**; any missing file falls back to procedural/placeholder art. The slot
-list, expected sizes, and suggested packs are in [`public/kenney/README.md`](./public/kenney/README.md).
+## Art drop-in slots — wired, not yet filled
+A general drop-in pipeline backs the floor, parallax skyline, enemies, projectiles,
+and pickups (`src/ui/kenneyAssets.ts`; loaded in `BootScene`). Files go in the
+semantic folders under `public/` (`textures/floors`, `textures/parallax`,
+`sprites/enemies`, `sprites/weapons`, `sprites/pickups`) and are picked up with **no
+code change** once their path is listed in `public/art-manifest.json`; any missing
+file falls back to procedural/placeholder art. The full per-slot list, sizes, and
+status live in [`public/ASSET_INDEX.md`](./public/ASSET_INDEX.md) and the per-folder
+READMEs (spec) + [`ART.md`](./ART.md) (production guide).
 
-These slots are **empty today** — the sandbox network policy blocks `kenney.nl`
-(`403 host_not_allowed`), so the actual files are downloaded on a networked machine
-and committed later. **When a file is added, append a row to the table above** with
-its source URL + license before committing.
-
-| Drop-in file | Game slot | Status |
-|---|---|---|
-| `public/kenney/floor.png` | 2.5D ground plane (set `RENDER.floorTexture = true` after adding) | empty — placeholder paver in use |
-| `public/kenney/rush_fan.png` | Rushing Fan enemy | empty — procedural |
-| `public/kenney/merch_mule.png` | Merch-Mule enemy | empty — procedural |
-| `public/kenney/boss.png` | The Ultimate Collector (boss) | empty — procedural |
-| `public/kenney/pocky.png` · `shuriken.png` · `bullet.png` | Projectiles (white → tinted) | empty — procedural |
-| `public/kenney/xp_gem.png` · `word_token.png` | Pickups | empty — procedural |
+These slots are **empty today** (procedural art in use). **When you add a real file,
+record its source + license here** before committing (AI-generated → note the tool;
+externally-sourced → CC0 / license-compatible only).
 
 ## Audio
 Voice clips generated with [VOICEVOX](https://voicevox.hiroshiba.jp/) — free, open-source Japanese text-to-speech.

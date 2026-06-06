@@ -25,10 +25,10 @@ import { RENDER, DEPTH } from '../data/render';
 
 export const FLOOR_TEXTURE_KEY = 'floor_tex';
 
-// Optional neon-city parallax layers (far → near). Drop real art into public/kenney/
-// (parallax_far|mid|near.png) and list it in manifest.json; the loader registers it
-// under these keys and Backdrop renders horizontally-tiling layers instead of the
-// procedural silhouettes. Any missing layer simply isn't created.
+// Optional neon-city parallax layers (far → near). Drop real art into
+// public/textures/parallax/ (arcade_far|mid|near.png) and list it in art-manifest.json;
+// the loader registers it under these keys and Backdrop renders horizontally-tiling
+// layers instead of the procedural silhouettes. Any missing layer simply isn't created.
 export const PARALLAX_KEYS = ['env_parallax_far', 'env_parallax_mid', 'env_parallax_near'] as const;
 
 const HORIZON_FULL = 0.15; // horizon screen-y fraction at tilt = 1
