@@ -9,6 +9,7 @@ and what's safe to ship.
 | Arcade floor tile | `public/textures/floors/arcade_floor_tile.png` | Provided by the project owner (original art) | Owned / original | 512×512 seamless neon tech-grid tile. **Active** — `RENDER.floorTexture` is on; the floor mesh shows it true near the player (`floorTextureTint`) and hazes it dark toward the horizon. |
 | Neon-street floor tile | `public/textures/floors/neonstreet_floor_tile.webp` | Provided by the project owner (original art) | Owned / original | 1254×1254 webp. Stored for a future neon-street stage; not yet wired. |
 | Arcade far parallax | `public/textures/parallax/arcade_far.webp` | Provided by the project owner (original art) | Owned / original | 1920×300 seamless skyline. **Active** as the far (slowest) parallax layer. |
+| Rōnin 4-dir character | `public/sprites/heroes/ronin/ronin_4dir_transparent.webp` | Provided by the project owner (original art) | Owned / original | 1536×1024 transparent sheet, 4 views. Rect-sliced to down/up/side (+flip), ~60px in-game. **Active** as 浪人 Rōnin. |
 | Sensei 4-dir character | `public/sprites/heroes/sensei/sensei_4dir_transparent.webp` | Provided by the project owner (original art) | Owned / original | 1536×1024 transparent sheet, 4 views. Rect-sliced to down/up/side (+flip), ~60px in-game. **Active** as 先生 Sensei. |
 | Kōhai 4-dir character | `public/sprites/heroes/kohai/kohai_4dir_transparent.webp` | Provided by the project owner (original art) | Owned / original | 1536×1024 transparent sheet, 4 views (front/back/side-L/side-R). Rect-sliced to down/up/side (+flip), ~60px in-game. **Active** as 後輩 Kōhai. |
 | Arcade mid parallax | `public/textures/parallax/arcade_mid.webp` | Provided by the project owner (original art) | Owned / original | 1774×887 neon street/shopfronts. **Active** as the mid parallax layer. |
@@ -30,8 +31,12 @@ record its source + license here** before committing (AI-generated → note the 
 externally-sourced → CC0 / license-compatible only).
 
 ## Audio
-Voice clips generated with [VOICEVOX](https://voicevox.hiroshiba.jp/) — free, open-source Japanese text-to-speech.
-Voice: 四国めたん (Shikoku Metan) あまあま style via VOICEVOX — https://voicevox.hiroshiba.jp/ (speaker id 0).
+Voice clips generated with [VOICEVOX](https://voicevox.hiroshiba.jp/) — free, open-source Japanese text-to-speech. Each character has their own voice:
+
+- 後輩 **Kōhai** — 四国めたん (Shikoku Metan), あまあま/sweet style (speaker id 0)
+- 先生 **Sensei** — No.7, ノーマル/Normal style (speaker id 29)
+- 浪人 **Rōnin** — 中部つるぎ (Chubu Tsurugi), ノーマル/Normal style (speaker id 94)
+
 VOICEVOX is provided under the LGPL license. Individual character voice terms apply — see https://voicevox.hiroshiba.jp/ for details.
 
 Clips live in `public/audio/` with a `manifest.json` (`{ "clips": { "<jp>": { "n", "s"? } } }`)

@@ -22,7 +22,7 @@ import { Spawner } from '../systems/spawner';
 import { Hud } from '../ui/hud';
 import { ARCHETYPES, type EnemyData } from '../entities/enemies/archetypes';
 import { PlayerLoadout } from '../systems/loadout';
-import { speak, stopAudio } from '../audio/tts';
+import { speak, stopAudio, setActiveVoice } from '../audio/tts';
 import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
@@ -125,6 +125,7 @@ export class RunScene extends Phaser.Scene {
     this.stage = getStage(data.stageId ?? 'arcade');
     this.character = getCharacter(data.characterId);
     this.loadout = new PlayerLoadout(this.character);
+    setActiveVoice(this.character.voiceId ?? null); // this run's character speaks in their own voice
     // Base HP/move-speed come from the chosen character.
     this.maxHp = this.loadout.stats().maxHp;
     this.hp = this.maxHp;
