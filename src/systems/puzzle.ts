@@ -37,7 +37,11 @@ export interface BuildPuzzle {
   sentence: IndexedSentence;
   promptEn: string;
   order: Word[]; // the correct sequence (= words[])
-  scrambled: Word[]; // the same words, shuffled, for the tray
+  scrambled: Word[]; // the tray: the order's words shuffled (+ Tier-B particle decoys)
+  // 'C' = full assembly (order the exact words). 'B' = place + particle: the tray
+  // also holds decoy role-markers, so you must choose the right particle while
+  // ordering. Same UI + grading; a decoy tap just counts as a mistake.
+  tier: 'B' | 'C';
 }
 
 export type AnyPuzzle = Puzzle | BuildPuzzle | TranslatePuzzle;
@@ -196,12 +200,21 @@ function modeOrder(level: number): Mode[] {
   return [primary, ...rest];
 }
 
+/** Chance a 'build' puzzle is upgraded to Tier B (place + particle) — 0 until
+ *  ~L5, ramping with level so the harder hybrid fades in as the player advances. */
+function tierBChance(level: number): number {
+  return clamp(0.12 * (level - 4), 0, 0.6);
+}
+
 function buildForMode(mode: Mode, stage: ResolvedStage, pool: CollectedPool, opts: PickOpts): AnyPuzzle | null {
   if (mode === 'translate') return buildTranslate(stage, pool);
   const cands = candidatesFor(stage, pool, opts, mode);
   const s = pickWeighted(cands, pool, mode, opts.recentParticles);
   if (!s) return null;
-  return mode === 'particle' ? buildTierA(s, opts.distractors, opts.recentParticles) : buildBuild(s);
+  if (mode === 'particle') return buildTierA(s, opts.distractors, opts.recentParticles);
+  // 'build': Tier C (plain assembly) or, increasingly with level, Tier B (+particle decoys).
+  const decoys = Math.random() < tierBChance(opts.level) ? (opts.level > 8 ? 2 : 1) : 0;
+  return buildBuild(s, decoys);
 }
 
 /**
@@ -270,16 +283,33 @@ export function buildTierA(
   };
 }
 
-/** Build a "build the sentence" puzzle: the correct order plus a shuffled tray. */
-export function buildBuild(sentence: IndexedSentence): BuildPuzzle | null {
+/**
+ * Build a "build the sentence" puzzle: the correct order plus a shuffled tray.
+ * `decoyParticles` > 0 upgrades it to Tier B (place + particle) — decoy role-markers
+ * (ones NOT in this sentence) are added to the tray, so the player must pick the
+ * right particle while ordering. Only applied when the sentence actually uses a
+ * role-marker; otherwise it stays Tier C (plain assembly).
+ */
+export function buildBuild(sentence: IndexedSentence, decoyParticles = 0): BuildPuzzle | null {
   const order = sentence.words.slice();
   if (order.length < 2) return null;
-  let scrambled = shuffle(order.slice());
-  // Avoid handing back an already-correct arrangement.
-  for (let t = 0; t < 6 && scrambled.every((w, i) => w === order[i]); t++) {
-    scrambled = shuffle(order.slice());
+
+  const hasMarker = order.some((w) => w.pos === 'prt' && isRoleMarker(w.jp));
+  const used = new Set(order.map((w) => w.jp));
+  const decoys: Word[] =
+    decoyParticles > 0 && hasMarker
+      ? shuffle(Object.keys(PARTICLE_FREQ).filter((p) => isRoleMarker(p) && !used.has(p)))
+          .slice(0, decoyParticles)
+          .map((jp) => ({ jp, en: '(particle)', pos: 'prt' } as Word))
+      : [];
+
+  const tray = [...order, ...decoys];
+  let scrambled = shuffle(tray.slice());
+  // Avoid handing back the order already in place at the front of the tray.
+  for (let t = 0; t < 6 && scrambled.slice(0, order.length).every((w, i) => w === order[i]); t++) {
+    scrambled = shuffle(tray.slice());
   }
-  return { kind: 'build', sentence, promptEn: sentence.en, order, scrambled };
+  return { kind: 'build', sentence, promptEn: sentence.en, order, scrambled, tier: decoys.length ? 'B' : 'C' };
 }
 
 /** Build a vocabulary-recall puzzle from the stage word pool. Picks a content

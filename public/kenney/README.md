@@ -31,6 +31,9 @@ truth — these filenames must match it.
 | File (`public/kenney/`) | Game slot | Size / notes | Suggested CC0 pack |
 |---|---|---|---|
 | `floor.png` | 2.5D ground plane | **Seamless + power-of-two** (128×128 or 256×256) so it tiles + mipmaps cleanly. Grayscale tiles best — the floor mesh tints it with `RENDER.floorNear/floorFar`. Dark/tech/neon-grid suits the Edgerunners look. After adding, set `RENDER.floorTexture = true`. | [Pattern Pack](https://kenney.nl/assets/pattern-pack), [Tiny Town](https://kenney.nl/assets/tiny-town), Prototype Textures |
+| `parallax_far.png` | Neon-city skyline — far layer | Horizontally **tileable**, transparent above the rooftops. Hazy/low-contrast distant towers. ~960×220. Auto-rendered as a scrolling layer when present. | AI image tools, [Background Elements Redux](https://kenney.nl/assets/background-elements-redux) |
+| `parallax_mid.png` | Neon-city skyline — mid layer | Tileable + transparent. Buildings + neon signage glow. ~960×260. | AI image tools / CC0 city silhouettes |
+| `parallax_near.png` | Neon-city skyline — near layer | Tileable + transparent. Tallest, darkest, boldest neon. ~960×320. | AI image tools / CC0 city silhouettes |
 | `rush_fan.png` | Rushing Fan enemy | ~20px, transparent bg, faces down (front) | [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon), Monster Builder Pack |
 | `merch_mule.png` | Merch-Mule enemy | ~24px, transparent, faces down | [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) / Tiny Battle |
 | `boss.png` | The Ultimate Collector (boss) | ~28px, transparent, faces down | [Monster Builder Pack](https://kenney.nl/assets/monster-builder-pack) |
