@@ -24,7 +24,7 @@ import { ARCHETYPES, type EnemyData } from '../entities/enemies/archetypes';
 import { PlayerLoadout } from '../systems/loadout';
 import { speak, stopAudio, setActiveVoice } from '../audio/tts';
 import { beginRun } from '../systems/srs';
-import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
+import { applyFacing, dirTextureKey, vectorToDir8, reverseDir, type FacingDir } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
 import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
 import { RENDER, DEPTH, baselineY } from '../data/render';
@@ -66,7 +66,7 @@ export class RunScene extends Phaser.Scene {
   private hpBarFill!: Phaser.GameObjects.Rectangle;
 
   private dir = new Phaser.Math.Vector2();
-  private facing: Cardinal = 'down';
+  private facing: FacingDir = 'down';
 
   private level = 1;
   private xp = 0;
@@ -679,7 +679,7 @@ export class RunScene extends Phaser.Scene {
     const speed = this.character.baseMoveSpeed * stats.moveSpeed * this.playerSlow;
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(this.dir.x * speed, this.dir.y * speed);
     const moving = this.dir.x !== 0 || this.dir.y !== 0;
-    this.facing = vectorToCardinal(this.dir.x, this.dir.y, this.facing);
+    this.facing = vectorToDir8(this.dir.x, this.dir.y, this.facing);
     applyFacing(this.rig, this.character.texture, this.facing, moving ? 'walk' : 'idle');
     tickWalkBob(this.rig, this.player.x, this.player.y, moving, delta); // bob around the body
     // Layer 1: y-sort by the BODY baseline (not the bobbing rig) so depth is stable.
@@ -706,16 +706,10 @@ export class RunScene extends Phaser.Scene {
       if (ed.latched) slow = Math.min(slow, BEHAVIOR.glomper.slow);
       if (ed.flash) { ed.flash = false; this.cameraFlash(e.x, e.y); }
       const body = e.body as Phaser.Physics.Arcade.Body;
-      const face = vectorToCardinal(body.velocity.x, body.velocity.y, (e.getData('face') as Cardinal) ?? 'down');
+      const face = vectorToDir8(body.velocity.x, body.velocity.y, (e.getData('face') as FacingDir) ?? 'down');
       e.setData('face', face);
-      // Too-Cool walks backwards: swap up/down so moving toward you shows his back.
-      const shown: Cardinal = arc.reverseFacing
-        ? face === 'down'
-          ? 'up'
-          : face === 'up'
-            ? 'down'
-            : face
-        : face;
+      // Too-Cool walks backwards: mirror the facing vertically so moving toward you shows his back.
+      const shown = arc.reverseFacing ? reverseDir(face) : face;
       applyFacing(e, arc.texture, shown, 'walk');
       if (RENDER.ySort) e.setDepth(baselineY(e));
       this.shadows.sync(e);
