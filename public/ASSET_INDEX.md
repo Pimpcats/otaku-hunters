@@ -31,18 +31,18 @@ stand-in works) · ☐ missing (drop zone empty).
 | 先生 Sensei | `sprites/heroes/sensei/sensei_4dir_transparent.webp` | 4-dir static (1536×1024 sheet, rect-sliced) | ✓ **ready/active** | yes — down/up/side+flip, ~60px |
 | 浪人 Rōnin | `sprites/heroes/ronin/ronin_4dir_transparent.webp` | 4-dir static (1536×1024 sheet, rect-sliced) | ✓ **ready/active** | yes — down/up/side+flip, ~60px |
 
-## Enemies — `public/sprites/enemies/` (~48×48, faces down, transparent)
+## Enemies — `public/sprites/enemies/` (green-screen 4-view sheets ~1983×793, sliced)
 | File | Enemy | Status | Wired |
 |---|---|---|---|
-| `rushfan.webp` | Rushing Fan ファン | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
-| `merchmule.webp` | Merch-Mule 転売ヤー | ✓ **ready/active** | 4-view sheet (green-screen keyed), ~50px |
-| `anxious.webp` | Shy Fan 陰キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
-| `toocool.webp` | Cool Fan 陽キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
-| `camera.webp` | Camera Otaku カメコ | ✓ **ready/active** | 4-view sheet (crouching), rect-sliced ~44px |
-| `wota.webp` | Idol Stan ヲタ芸 | ✓ **ready/active** | 4-view sheet (wide glowstick pose), rect-sliced ~44px |
-| `lurker.webp` | Old Guard 古参 | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px (grows with buff) |
-| `glomper.png` | Whale 重課金 | ☐ (procedural) | single-frame ✓ |
-| `boss_collector.png` | Ultimate Collector 究極コレクター (~128×128) | ☐ (procedural) | single-frame ✓ |
+| `rushfan_4dir.png` | Rushing Fan ファン (red hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed + rect-sliced ~46px |
+| `merchmule_4dir.png` | Merch-Mule 転売ヤー (gold jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~50px (bulkier) |
+| `anxious_4dir.png` | Shy Fan 陰キャ (dark-blue hoodie) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `toocool_4dir.png` | Cool Fan 陽キャ (purple jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `camera_4dir.png` | Camera Otaku カメコ (teal, crouching) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `wota_4dir.png` | Idol Stan ヲタ芸 (white happi) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px |
+| `lurker_4dir.png` | Old Guard 古参 (olive jacket) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px (grows with buff) |
+| `glomper_4dir.png` | Whale 重課金 (hot-pink, huge) | ✓ **ready/active** | green-screen 4-view sheet, keyed ~46px × **scale 1.4** (biggest non-boss) |
+| `boss_collector_4dir.png` | Ultimate Collector 究極コレクター | ✓ **ready/active** | green-screen **3-phase × 4-view** sheet; **phase-1 row** wired ~88px (phases 2–3 await roadmap Phase 4) |
 
 ## Weapons / projectiles — `public/sprites/weapons/` (16–32px, transparent)
 | File | Use | Status | Wired |
@@ -66,8 +66,20 @@ stand-in works) · ☐ missing (drop zone empty).
 |---|---|---|---|
 | `arcade_floor_tile.png` | The Arcade floor | ✓ stored | ☐ OFF — has baked perspective; procedural TRON grid active (`floorTexture=false`). Flip on with a FLAT seamless tile. |
 | `floor_placeholder.png` | grayscale paver fallback | ▣ placeholder | yes (used only if the tile is removed) |
-| `neonstreet_floor_tile.webp` (1254×1254; uploaded as webp) | Neon-street stage floor | ✓ stored | not wired — no neon-street stage yet (recommend a 512×512 PNG when that stage lands; 1254 is non-power-of-two → no mipmaps) |
+| `neon_street_tile_a.webp` (512×512) | Neon Street floor variant A (manhole, cyan puddle, 未来最高) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
+| `neon_street_tile_b.webp` (512×512) | Neon Street floor variant B (magenta streaks, sewer grate, stickers) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
+| `neon_street_tile_c.webp` (512×512) | Neon Street floor variant C (yellow chevrons, コレクション最高, gutter) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
+| `neon_street_tile_d.webp` (512×512) | Neon Street floor variant D (crosswalk, pins, puddles) | ✓ ready | ✓ wired (variant atlas) — see note ⚠ |
+| `neonstreet_floor_tile.webp` (1254×1254) | (older single neon-street tile) | ✓ stored | superseded by the A–D variant set above |
 | `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
+
+> **Neon Street multi-tile floor:** when `RENDER.floorTexture` **and** `RENDER.floorTileVariants`
+> are both on, the floor mesh composes an N×N atlas (`floorVariantAtlas`, default 4×4) where
+> each cell deterministically picks one of the A–D tiles (seeded by cell position) — killing
+> the single-tile repeat. Defaults **OFF**: the Arcade stage keeps the procedural neon grid;
+> this turns on for the Neon Street stage (roadmap Phase 6). ⚠ **The provided A–D tiles have a
+> baked-in "A"/"B"/"C"/"D" label in the top-left corner** (annotation, not part of the tile) —
+> they will repeat on the floor until replaced with clean (unlabelled) versions.
 
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)
 | File | Use | Status | Wired |

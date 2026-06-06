@@ -23,7 +23,7 @@
 import Phaser from 'phaser';
 import { TEX } from '../constants';
 import { dirTextureKey, type FacingSet } from '../systems/facing';
-import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS } from '../systems/backdrop';
+import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS, FLOOR_VARIANT_KEYS } from '../systems/backdrop';
 
 /** A single, non-directional texture (floor/parallax/projectile/pickup). */
 interface SingleAsset {
@@ -75,78 +75,106 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     destKey: FLOOR_TEXTURE_KEY,
     note: 'Seamless 512×512 floor tile for The Arcade. After adding, set RENDER.floorTexture = true.',
   },
+  // Neon-street floor variant tiles (A/B/C/D) — the floor mesh composes an N×N atlas
+  // from these when RENDER.floorTileVariants is on (for the Neon Street stage).
+  { kind: 'single', id: 'floorVarA', path: 'textures/floors/neon_street_tile_a.webp', key: FLOOR_VARIANT_KEYS[0], note: 'Neon-street floor variant A (512×512, flat top-down): manhole, cyan puddle, 未来最高.' },
+  { kind: 'single', id: 'floorVarB', path: 'textures/floors/neon_street_tile_b.webp', key: FLOOR_VARIANT_KEYS[1], note: 'Neon-street floor variant B (512×512, flat top-down): magenta streaks, sewer grate, stickers.' },
+  { kind: 'single', id: 'floorVarC', path: 'textures/floors/neon_street_tile_c.webp', key: FLOOR_VARIANT_KEYS[2], note: 'Neon-street floor variant C (512×512, flat top-down): yellow chevrons, コレクション最高, gutter.' },
+  { kind: 'single', id: 'floorVarD', path: 'textures/floors/neon_street_tile_d.webp', key: FLOOR_VARIANT_KEYS[3], note: 'Neon-street floor variant D (512×512, flat top-down): crosswalk stripes, pins, puddles.' },
 
   // ── Neon-city parallax skyline (textures/parallax), far → near ──────────────
   { kind: 'single', id: 'parallaxFar', path: 'textures/parallax/arcade_far.webp', key: PARALLAX_KEYS[0], note: 'Far skyline (arcade), 1920×300, horizontally seamless.' },
   { kind: 'single', id: 'parallaxMid', path: 'textures/parallax/arcade_mid.webp', key: PARALLAX_KEYS[1], note: 'Mid skyline (arcade), 1774×887; horizontally tiled, bottom near the seam.' },
   { kind: 'single', id: 'parallaxNear', path: 'textures/parallax/arcade_near.webp', key: PARALLAX_KEYS[2], note: 'Near skyline (arcade), 1920×500, horizontally seamless; bottom meets the floor.' },
 
-  // ── Enemies (sprites/enemies) — single front-facing frame, mirrored to facings ─
+  // ── Enemies (sprites/enemies) — green-screened 4-view sheets, rect-sliced ─────
+  // Sheets are ~1983×793, four views L→R: front(down)/back(up)/side-left/side-right.
+  // We bake down/up/side (side from the side-LEFT frame, flipped for the right via
+  // sideFlip). All sheets are green-screened → chromaKey:true keys the green out.
   {
     kind: 'dir',
     id: 'rushFan',
-    path: 'sprites/enemies/rushfan.webp',
+    path: 'sprites/enemies/rushfan_4dir.png',
     base: TEX.rushFan,
-    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
-    note: 'Rushing Fan ファン — 4-view sheet (1983×793), rect-sliced + downscaled to ~44px.',
-    sheet: { viewY: 167, viewH: 440, displayHeight: 44, views: { down: [112, 460], up: [585, 915], side: [1032, 1401] } },
+    sideFlip: true,
+    note: 'Rushing Fan ファン (red hoodie) — green-screen 4-view sheet (1983×793), keyed + rect-sliced ~46px.',
+    sheet: { viewY: 167, viewH: 438, displayHeight: 46, views: { down: [115, 460], up: [585, 915], side: [1032, 1401] }, chromaKey: true },
   },
   {
     kind: 'dir',
     id: 'merchMule',
-    path: 'sprites/enemies/merchmule.webp',
+    path: 'sprites/enemies/merchmule_4dir.png',
     base: TEX.merchMule,
-    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
-    note: 'Merch-Mule 転売ヤー — 4-view sheet (1983×793), green-screened; keyed + rect-sliced, ~50px (bulkier).',
-    sheet: { viewY: 152, viewH: 482, displayHeight: 50, views: { down: [62, 456], up: [559, 926], side: [1011, 1419] }, chromaKey: true },
+    sideFlip: true,
+    note: 'Merch-Mule 転売ヤー (gold jacket) — green-screen 4-view sheet (1983×793), keyed + rect-sliced ~50px (bulkier).',
+    sheet: { viewY: 148, viewH: 467, displayHeight: 50, views: { down: [62, 445], up: [545, 901], side: [983, 1381] }, chromaKey: true },
   },
   {
     kind: 'dir',
     id: 'anxious',
-    path: 'sprites/enemies/anxious.webp',
+    path: 'sprites/enemies/anxious_4dir.png',
     base: TEX.anxious,
-    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
-    note: 'Shy Fan 陰キャ — 4-view sheet (1983×793), transparent; rect-sliced ~44px.',
-    sheet: { viewY: 137, viewH: 518, displayHeight: 44, views: { down: [142, 426], up: [611, 877], side: [1050, 1387] } },
+    sideFlip: true,
+    note: 'Shy Fan 陰キャ (dark-blue hoodie) — green-screen 4-view sheet (1983×793), keyed + rect-sliced ~46px.',
+    sheet: { viewY: 124, viewH: 549, displayHeight: 46, views: { down: [127, 431], up: [593, 878], side: [1036, 1394] }, chromaKey: true },
   },
   {
     kind: 'dir',
     id: 'tooCool',
-    path: 'sprites/enemies/toocool.webp',
+    path: 'sprites/enemies/toocool_4dir.png',
     base: TEX.tooCool,
-    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
-    note: 'Cool Fan 陽キャ — 4-view sheet (1983×793), transparent; rect-sliced ~44px.',
-    sheet: { viewY: 87, viewH: 602, displayHeight: 44, views: { down: [160, 395], up: [601, 832], side: [1086, 1363] } },
+    sideFlip: true,
+    note: 'Cool Fan 陽キャ (purple jacket) — green-screen 4-view sheet (1983×793), keyed + rect-sliced ~46px.',
+    sheet: { viewY: 82, viewH: 621, displayHeight: 46, views: { down: [137, 380], up: [574, 815], side: [1050, 1339] }, chromaKey: true },
   },
   {
     kind: 'dir',
     id: 'cameko',
-    path: 'sprites/enemies/camera.webp',
+    path: 'sprites/enemies/camera_4dir.png',
     base: TEX.cameko,
-    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
-    note: 'Camera Otaku カメコ — 4-view sheet (1981×793), transparent, crouching; rect-sliced ~44px.',
-    sheet: { viewY: 157, viewH: 462, displayHeight: 44, views: { down: [134, 428], up: [581, 852], side: [1028, 1429] } },
+    sideFlip: true,
+    note: 'Camera Otaku カメコ (teal hoodie, crouching) — green-screen 4-view sheet (1983×793), keyed + rect-sliced ~46px.',
+    sheet: { viewY: 117, viewH: 521, displayHeight: 46, views: { down: [97, 430], up: [558, 865], side: [981, 1423] }, chromaKey: true },
   },
   {
     kind: 'dir',
     id: 'wotagei',
-    path: 'sprites/enemies/wota.webp',
+    path: 'sprites/enemies/wota_4dir.png',
     base: TEX.wotagei,
-    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
-    note: 'Idol Stan ヲタ芸 — 4-view sheet (1983×793), transparent, wide glowstick pose; rect-sliced ~44px.',
-    sheet: { viewY: 41, viewH: 647, displayHeight: 44, views: { down: [113, 483], up: [621, 969], side: [1072, 1337] } },
+    sideFlip: true,
+    note: 'Idol Stan ヲタ芸 (white happi, glowsticks) — green-screen 4-view sheet (1981×793), keyed + rect-sliced ~46px.',
+    sheet: { viewY: 28, viewH: 662, displayHeight: 46, views: { down: [114, 488], up: [637, 978], side: [1076, 1350] }, chromaKey: true },
   },
   {
     kind: 'dir',
     id: 'kosan',
-    path: 'sprites/enemies/lurker.webp',
+    path: 'sprites/enemies/lurker_4dir.png',
     base: TEX.kosan,
-    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
-    note: 'Old Guard 古参 — 4-view sheet (1981×793), transparent; rect-sliced ~44px (grows with its lurk buff).',
-    sheet: { viewY: 100, viewH: 592, displayHeight: 44, views: { down: [125, 374], up: [607, 851], side: [1095, 1319] } },
+    sideFlip: true,
+    note: 'Old Guard 古参 (olive jacket) — green-screen 4-view sheet (1983×793), keyed + rect-sliced ~46px (grows with its lurk buff).',
+    sheet: { viewY: 102, viewH: 607, displayHeight: 46, views: { down: [106, 353], up: [586, 824], side: [1075, 1305] }, chromaKey: true },
   },
-  { kind: 'dir', id: 'jukakin', path: 'sprites/enemies/glomper.png', base: TEX.jukakin, sideFlip: false, note: 'Whale 重課金, ~48px, faces down.' },
-  { kind: 'dir', id: 'boss', path: 'sprites/enemies/boss_collector.png', base: TEX.boss, sideFlip: false, note: 'The Ultimate Collector 究極コレクター — larger, ~128px, faces down.' },
+  {
+    kind: 'dir',
+    id: 'jukakin',
+    path: 'sprites/enemies/glomper_4dir.png',
+    base: TEX.jukakin,
+    sideFlip: true,
+    note: 'Whale 重課金 (hot-pink, huge) — green-screen 4-view sheet (1983×793), keyed + rect-sliced ~46px (×1.4 scale = biggest non-boss).',
+    sheet: { viewY: 79, viewH: 657, displayHeight: 46, views: { down: [35, 473], up: [516, 905], side: [975, 1346] }, chromaKey: true },
+  },
+  {
+    kind: 'dir',
+    id: 'boss',
+    path: 'sprites/enemies/boss_collector_4dir.png',
+    base: TEX.boss,
+    sideFlip: true,
+    // 3 phase-rows × 4 views. We wire PHASE 1 (top row, y26–260) for now; the
+    // awakened/rampage rows (y278–519, y538–780) get swapped in with the
+    // multi-phase boss logic (roadmap Phase 4).
+    note: 'The Ultimate Collector 究極コレクター (white/silver, rainbow merch) — green-screen 3×4 sheet; phase-1 row wired, rect-sliced ~88px (largest).',
+    sheet: { viewY: 26, viewH: 234, displayHeight: 88, views: { down: [193, 631], up: [683, 1073], side: [1128, 1449] }, chromaKey: true },
+  },
 
   // ── Projectiles (sprites/weapons) — white/grayscale → tinted in-engine ──────
   { kind: 'single', id: 'pocky', path: 'sprites/weapons/pocky.png', key: TEX.pocky, note: 'Kōhai bolt (お菓子), points +x, white on transparent, ~20×8.' },

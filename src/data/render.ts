@@ -99,6 +99,13 @@ export const RENDER = {
   cameraHeightBias: 0.12, // shifts framing up as tilt rises so the swarm stays visible (0..1)
   gridSize: 72, // world px between floor grid lines
   gridScroll: 1.0, // how strongly the floor grid tracks camera movement
+  // Neon glow on the procedural grid (the TRON/Edgerunners floor; floorTexture=false).
+  // Each line is drawn as additive passes: a wide faint halo → a hot near-white core.
+  gridLineWidth: 2.2, // core line thickness at the NEAR edge (tapers to the horizon)
+  gridGlow: 1.0, // overall glow halo strength (0 = crisp lines, 1 = full bloom halo)
+  gridGlowWidth: 7, // halo spread as a multiple of the core width
+  gridAccentColor: 0xff37c0, // hot-magenta accent line colour (Edgerunners pink)
+  gridAccentEvery: 4, // every Nth grid line is the accent colour (0 = all cyan)
   // Real tiling floor texture (vs. the wireframe grid). Same perspective/rowY
   // recession either way — this just swaps the wireframe look for a real surface.
   // DEFAULT false: the glowing electric-cyan wireframe grid on near-black IS the
@@ -107,13 +114,26 @@ export const RENDER = {
   // one-line flip: drop a seamless tile into public/textures/floors/arcade_floor_tile.png
   // (see that folder's README), set this true, and it rides the same recession.
   floorTexture: false, // procedural neon TRON grid (the arcade tile has baked perspective; flip true for a FLAT seamless tile)
-  floorTileWorld: 220, // world px one texture tile spans (bigger = fewer repeats + gentler perspective)
+  // Multi-tile floor (for the Neon Street stage): instead of repeating ONE tile,
+  // compose an N×N atlas where each cell deterministically picks one of the 4 neon-
+  // street variants (seeded by cell position) → no repetitive single-tile look. Needs
+  // floorTexture=true and the 4 variant tiles present; falls back to the single tile
+  // when false/absent. The Arcade stage keeps floorTexture=false (procedural grid).
+  floorTileVariants: false,
+  floorVariantAtlas: 4, // atlas is N×N cells (4 → 16-cell pattern before it repeats)
+  floorTileWorld: 220, // world px one tile/cell spans (bigger = fewer repeats + gentler perspective)
   maxSpread: 4, // cap on horizontal tile compression toward the horizon (lower = flatter/smoother; higher = pinchy trapezoids)
   floorTextureTint: 0xffffff, // mesh multiply tint NEAR (white = show colored art true); hazes to floorFar at the horizon
 
   // ── Layer 4: Parallax background ────────────────────────────────────────────
   parallax: true,
   parallaxStrength: [0.12, 0.3, 0.55] as number[], // far → near, fraction of camera scroll
+  // Per-layer band height (fraction of the back-wall band), far → near. Each layer
+  // is anchored at the horizon SEAM and shows the BOTTOM of its image, so a shorter
+  // front layer reveals the taller layer behind it in the band above it. far=1 fills
+  // the whole band (its transparent sky shows the gradient); mid/near step down so
+  // the three read as stacked depth planes. Requires transparent skies on far+mid.
+  parallaxHeight: [1.0, 0.82, 0.6] as number[],
   useParallaxArt: true, // true = real skyline art per layer (procedural where a layer has none);
   //                       false = the procedural rectangle silhouettes everywhere (A/B compare)
 
