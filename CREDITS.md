@@ -11,6 +11,7 @@ and what's safe to ship.
 | Arcade far parallax | `public/textures/parallax/arcade_far.webp` | Provided by the project owner (original art) | Owned / original | 1920×300 seamless skyline. **Active** as the far (slowest) parallax layer. |
 | AnxiousOne enemy (4-dir) | `public/sprites/enemies/anxious.webp` | Provided by the project owner (original art) | Owned / original | 1983×793 transparent 4-view sheet (陰キャ, sweaty/shy), rect-sliced ~44px. |
 | CameraGremlin enemy (4-dir) | `public/sprites/enemies/camera.webp` | Provided by the project owner (original art) | Owned / original | 1981×793 transparent 4-view sheet (カメコ, crouching paparazzo), rect-sliced ~44px. |
+| IdolWota enemy (4-dir) | `public/sprites/enemies/wota.webp` | Provided by the project owner (original art) | Owned / original | 1983×793 transparent 4-view sheet (ヲタ芸, glowstick dance), rect-sliced ~44px. |
 | TooCool enemy (4-dir) | `public/sprites/enemies/toocool.webp` | Provided by the project owner (original art) | Owned / original | 1983×793 transparent 4-view sheet (陽キャ, sunglasses/swagger), rect-sliced ~44px. |
 | RushFan enemy (4-dir) | `public/sprites/enemies/rushfan.webp` | Provided by the project owner (original art) | Owned / original | 1983×793 transparent 4-view sheet, rect-sliced to down/up/side (+flip), ~44px in-game. |
 | MerchMule enemy (4-dir) | `public/sprites/enemies/merchmule.webp` | Provided by the project owner (original art) | Owned / original | 1983×793 4-view sheet (green-screen, keyed to transparent at load), ~50px (bulkier). |
