@@ -66,7 +66,8 @@ stand-in works) · ☐ missing (drop zone empty).
 |---|---|---|---|
 | `arcade_floor_tile.png` | The Arcade floor | ✓ ready | ✓ **active** (`RENDER.floorTexture` on) |
 | `floor_placeholder.png` | grayscale paver fallback | ▣ placeholder | yes (used only if the tile is removed) |
-| `themepark_floor_tile.png`, `neonstreet_floor_tile.png` | future stages | ☐ missing | needs stage wiring |
+| `neonstreet_floor_tile.webp` (1254×1254; uploaded as webp) | Neon-street stage floor | ✓ stored | not wired — no neon-street stage yet (recommend a 512×512 PNG when that stage lands; 1254 is non-power-of-two → no mipmaps) |
+| `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
 
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)
 | File | Use | Status | Wired |

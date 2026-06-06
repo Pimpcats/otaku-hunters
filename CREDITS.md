@@ -7,6 +7,7 @@ and what's safe to ship.
 | Asset | Path | Source | License | Notes |
 |-------|------|--------|---------|-------|
 | Arcade floor tile | `public/textures/floors/arcade_floor_tile.png` | Provided by the project owner (original art) | Owned / original | 512×512 seamless neon tech-grid tile. **Active** — `RENDER.floorTexture` is on; the floor mesh shows it true near the player (`floorTextureTint`) and hazes it dark toward the horizon. |
+| Neon-street floor tile | `public/textures/floors/neonstreet_floor_tile.webp` | Provided by the project owner (original art) | Owned / original | 1254×1254 webp. Stored for a future neon-street stage; not yet wired. |
 | Floor tile (placeholder) | `public/textures/floors/floor_placeholder.png` | Procedurally generated for this repo (`tools`/build script) | CC0 / public domain (owned) | **Stand-in.** The brief asked for a CC0 tile from [kenney.nl](https://kenney.nl/assets) (e.g. a tile/pavement pattern), but this sandbox's network policy blocks outbound to `kenney.nl` (`403 host_not_allowed`), so a seamless 128×128 grayscale paver was generated in-engine instead. It's grayscale on purpose — the floor mesh tints it with the in-game `RENDER.floorNear`/`floorFar` palette. To swap in a real Kenney tile later, just replace this file (keep it seamless/tileable; power-of-two like 128×128 or 256×256 so it repeats), update this row, and no code changes are needed. |
 
 ## Art drop-in slots — wired, not yet filled
