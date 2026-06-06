@@ -15,7 +15,7 @@ import { GRADE_STACKS, NOPE_HEAL, type Grade } from '../data/balance';
 import { PlayerLoadout, type UpgradeDef } from '../systems/loadout';
 import { recordGrade } from '../systems/srs';
 import { readingOf, toRomaji } from '../systems/romaji';
-import { speak } from '../audio/tts';
+import { speak, stopAudio } from '../audio/tts';
 import type { LevelUpResult } from './RunScene';
 
 interface LevelUpData {
@@ -76,6 +76,7 @@ export class LevelUpScene extends Phaser.Scene {
 
   create(data: LevelUpData) {
     this.payload = data;
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopAudio); // never leave a clip ringing
     this.firstTry = true;
     this.solved = false;
     this.phase = 'puzzle';
@@ -403,6 +404,7 @@ export class LevelUpScene extends Phaser.Scene {
 
   private choose(opt: string, container: Phaser.GameObjects.Container) {
     if (this.phase !== 'puzzle' || !this.puzzle || this.puzzle.kind !== 'particle') return;
+    speak(opt); // reinforce the particle's sound on selection (sentence plays on a correct solve)
     const bg = container.getData('bg') as Phaser.GameObjects.Rectangle;
     if (opt === this.puzzle.correct) {
       this.solved = true;

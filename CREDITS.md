@@ -29,21 +29,17 @@ its source URL + license before committing.
 | `public/kenney/pocky.png` · `shuriken.png` · `bullet.png` | Projectiles (white → tinted) | empty — procedural |
 | `public/kenney/xp_gem.png` · `word_token.png` | Pickups | empty — procedural |
 
-## Audio — VOICEVOX
-Japanese voice clips are pre-generated with **[VOICEVOX](https://voicevox.hertz-storm.com/)**
-(free, redistributable text-to-speech) and shared with the Hanasou study app. They
-live in `public/audio/` with a `manifest.json` mapping each Japanese string to its
-clip file(s) (normal + optional slow). The game plays the matching clip for word
-pickups, chip placement, and full-sentence assembly, falling back to the device
-Web Speech API for any line without a clip (`src/audio/tts.ts`).
+## Audio
+Voice clips generated with [VOICEVOX](https://voicevox.hiroshiba.jp/) — free, open-source Japanese text-to-speech.
+Character voice: [speaker name TBD — will be filled in when we confirm which speaker ID we're using].
+VOICEVOX is provided under the LGPL license. Individual character voice terms apply — see https://voicevox.hiroshiba.jp/ for details.
 
-> Per VOICEVOX terms, **credit the specific voice character(s) used** (e.g.
-> "VOICEVOX:四国めたん") wherever the generated audio is presented. List the exact
-> character(s) from Hanasou's set here once the clips are dropped in.
-
-| Asset | Path | Source | License | Notes |
-|-------|------|--------|---------|-------|
-| Japanese voice clips | `public/audio/*` + `manifest.json` | [VOICEVOX](https://voicevox.hertz-storm.com/) (pre-generated, via Hanasou) | VOICEVOX terms — free use **with credit to the voice character** | `manifest.json` ships as `{}`; real clips + manifest copied from Hanasou. Name the voice character(s) above. |
+Clips live in `public/audio/` with a `manifest.json` (`{ "clips": { "<jp>": { "n", "s"? } } }`)
+mapping each Japanese string to its normal/slow filename. The game plays the matching
+clip for word pickups, chip placement, particle selection, and full-sentence solves,
+falling back to the device Web Speech API for any line without a clip (`src/audio/tts.ts`).
+Clips are (re)generated locally with `tools/generate-audio.ts` against a local VOICEVOX
+engine — a dev tool only, never a build/runtime dependency.
 
 ## Standing rule
 Any externally-sourced asset (or procedural stand-in for one) gets a row here with

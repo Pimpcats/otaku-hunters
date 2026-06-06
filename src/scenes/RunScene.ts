@@ -22,7 +22,7 @@ import { Spawner } from '../systems/spawner';
 import { Hud } from '../ui/hud';
 import { ARCHETYPES, type EnemyData } from '../entities/enemies/archetypes';
 import { PlayerLoadout } from '../systems/loadout';
-import { speak } from '../audio/tts';
+import { speak, stopAudio } from '../audio/tts';
 import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToCardinal, type Cardinal } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
@@ -179,6 +179,9 @@ export class RunScene extends Phaser.Scene {
     // Pause on ESC or Space.
     this.input.keyboard?.on('keydown-ESC', this.openPause, this);
     this.input.keyboard?.on('keydown-SPACE', this.openPause, this);
+
+    // Stop any voice clip when the run ends / transitions away.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopAudio);
   }
 
   private openPause() {
