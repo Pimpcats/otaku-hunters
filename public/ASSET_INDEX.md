@@ -34,13 +34,13 @@ stand-in works) · ☐ missing (drop zone empty).
 ## Enemies — `public/sprites/enemies/` (~48×48, faces down, transparent)
 | File | Enemy | Status | Wired |
 |---|---|---|---|
-| `rushfan.png` | Rushing Fan ファン | ☐ (procedural) | single-frame ✓ / sheet wire-on-request |
-| `merchmule.png` | Merch-Mule 転売ヤー | ☐ (procedural) | single-frame ✓ |
-| `anxious.png` | Shy Fan 陰キャ | ☐ (procedural) | single-frame ✓ |
-| `toocool.png` | Cool Fan 陽キャ | ☐ (procedural) | single-frame ✓ |
-| `camera.png` | Camera Otaku カメコ | ☐ (procedural) | single-frame ✓ |
-| `wota.png` | Idol Stan ヲタ芸 | ☐ (procedural) | single-frame ✓ |
-| `lurker.png` | Old Guard 古参 | ☐ (procedural) | single-frame ✓ |
+| `rushfan.webp` | Rushing Fan ファン | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
+| `merchmule.webp` | Merch-Mule 転売ヤー | ✓ **ready/active** | 4-view sheet (green-screen keyed), ~50px |
+| `anxious.webp` | Shy Fan 陰キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
+| `toocool.webp` | Cool Fan 陽キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
+| `camera.webp` | Camera Otaku カメコ | ✓ **ready/active** | 4-view sheet (crouching), rect-sliced ~44px |
+| `wota.webp` | Idol Stan ヲタ芸 | ✓ **ready/active** | 4-view sheet (wide glowstick pose), rect-sliced ~44px |
+| `lurker.webp` | Old Guard 古参 | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px (grows with buff) |
 | `glomper.png` | Whale 重課金 | ☐ (procedural) | single-frame ✓ |
 | `boss_collector.png` | Ultimate Collector 究極コレクター (~128×128) | ☐ (procedural) | single-frame ✓ |
 
