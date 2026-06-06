@@ -23,7 +23,7 @@
 import Phaser from 'phaser';
 import { TEX } from '../constants';
 import { dirTextureKey, type FacingSet } from '../systems/facing';
-import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS } from '../systems/backdrop';
+import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS, FLOOR_VARIANT_KEYS } from '../systems/backdrop';
 
 /** A single, non-directional texture (floor/parallax/projectile/pickup). */
 interface SingleAsset {
@@ -75,6 +75,12 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     destKey: FLOOR_TEXTURE_KEY,
     note: 'Seamless 512×512 floor tile for The Arcade. After adding, set RENDER.floorTexture = true.',
   },
+  // Neon-street floor variant tiles (A/B/C/D) — the floor mesh composes an N×N atlas
+  // from these when RENDER.floorTileVariants is on (for the Neon Street stage).
+  { kind: 'single', id: 'floorVarA', path: 'textures/floors/neon_street_tile_a.webp', key: FLOOR_VARIANT_KEYS[0], note: 'Neon-street floor variant A (512×512, flat top-down): manhole, cyan puddle, 未来最高.' },
+  { kind: 'single', id: 'floorVarB', path: 'textures/floors/neon_street_tile_b.webp', key: FLOOR_VARIANT_KEYS[1], note: 'Neon-street floor variant B (512×512, flat top-down): magenta streaks, sewer grate, stickers.' },
+  { kind: 'single', id: 'floorVarC', path: 'textures/floors/neon_street_tile_c.webp', key: FLOOR_VARIANT_KEYS[2], note: 'Neon-street floor variant C (512×512, flat top-down): yellow chevrons, コレクション最高, gutter.' },
+  { kind: 'single', id: 'floorVarD', path: 'textures/floors/neon_street_tile_d.webp', key: FLOOR_VARIANT_KEYS[3], note: 'Neon-street floor variant D (512×512, flat top-down): crosswalk stripes, pins, puddles.' },
 
   // ── Neon-city parallax skyline (textures/parallax), far → near ──────────────
   { kind: 'single', id: 'parallaxFar', path: 'textures/parallax/arcade_far.webp', key: PARALLAX_KEYS[0], note: 'Far skyline (arcade), 1920×300, horizontally seamless.' },

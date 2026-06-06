@@ -31,6 +31,12 @@ export const FLOOR_TEXTURE_KEY = 'floor_tex';
 // layers instead of the procedural silhouettes. Any missing layer simply isn't created.
 export const PARALLAX_KEYS = ['env_parallax_far', 'env_parallax_mid', 'env_parallax_near'] as const;
 
+// Neon-street floor variant tiles (A/B/C/D). When RENDER.floorTileVariants is on and
+// all four are present, the floor mesh tiles a composed N×N atlas of them (each cell
+// a deterministic pick) instead of a single repeating tile. Drop art into
+// public/textures/floors/neon_street_tile_{a,b,c,d}.* and list it in art-manifest.json.
+export const FLOOR_VARIANT_KEYS = ['floor_var_a', 'floor_var_b', 'floor_var_c', 'floor_var_d'] as const;
+
 // Sky/back-wall band height (and floor horizon) = H * RENDER.horizonFrac.
 const floorTopY = (): number => H * Phaser.Math.Clamp(RENDER.horizonFrac, 0.02, 0.9);
 const PERSP = 5; // perspective compression strength at tilt = 1
@@ -44,6 +50,7 @@ export class Backdrop {
 
   // Textured-floor mesh (only when RENDER.floorTexture and the texture loaded).
   private floor?: Phaser.GameObjects.Mesh;
+  private tileWorldEff = RENDER.floorTileWorld; // world px per texture repeat (×N for the variant atlas)
   private rows: number[] = []; // world depth d at each mesh row
   private spread: number[] = []; // horizontal tile compression at each row
   private sx: number[] = []; // screen x at each mesh column (bottom edge)
@@ -66,9 +73,36 @@ export class Backdrop {
       .setDepth(DEPTH.grid + 1)
       .setBlendMode(Phaser.BlendModes.ADD);
     this.buildSkyline();
-    if (RENDER.floorTexture && scene.textures.exists(FLOOR_TEXTURE_KEY)) {
-      this.buildFloorMesh();
+    if (RENDER.floorTexture) {
+      this.maybeBuildVariantAtlas(); // composes FLOOR_TEXTURE_KEY from the 4 neon-street tiles when enabled
+      if (scene.textures.exists(FLOOR_TEXTURE_KEY)) this.buildFloorMesh();
     }
+  }
+
+  /** Neon Street multi-tile floor: compose an N×N atlas where each cell deterministically
+   *  picks one of the 4 variant tiles (seeded by cell position), and register it as the
+   *  floor texture so the mesh tiles a varied surface instead of one repeating image.
+   *  No-op unless RENDER.floorTileVariants is on and all four variant tiles are present. */
+  private maybeBuildVariantAtlas(): void {
+    if (!RENDER.floorTileVariants) return;
+    if (!FLOOR_VARIANT_KEYS.every((k) => this.scene.textures.exists(k))) return; // need all 4
+    const N = Math.max(2, RENDER.floorVariantAtlas | 0);
+    const cell = 256; // atlas cell px (downscaled from the 512 source tiles)
+    const size = N * cell; // POT when N is a power of two → clean mipmaps
+    if (this.scene.textures.exists(FLOOR_TEXTURE_KEY)) this.scene.textures.remove(FLOOR_TEXTURE_KEY);
+    const t = this.scene.textures.createCanvas(FLOOR_TEXTURE_KEY, size, size);
+    if (!t) return;
+    const ctx = t.getContext();
+    ctx.imageSmoothingEnabled = true;
+    const imgs = FLOOR_VARIANT_KEYS.map((k) => this.scene.textures.get(k).getSourceImage() as CanvasImageSource);
+    for (let cy = 0; cy < N; cy++) {
+      for (let cx = 0; cx < N; cx++) {
+        const v = variantFor(cx, cy) % imgs.length;
+        ctx.drawImage(imgs[v], cx * cell, cy * cell, cell, cell);
+      }
+    }
+    t.refresh();
+    this.tileWorldEff = RENDER.floorTileWorld * N; // one atlas repeat now spans N world cells
   }
 
   /** Build tiling parallax layers from any dropped-in skyline art. None present →
@@ -100,7 +134,7 @@ export class Backdrop {
   private buildFloorMesh(): void {
     const tilt = Phaser.Math.Clamp(RENDER.groundTilt, 0, 1);
     const floorTop = floorTopY();
-    const tileWorld = RENDER.floorTileWorld;
+    const tileWorld = this.tileWorldEff;
 
     // Find how far back (world px) the floor recedes before reaching the horizon.
     let dMax = H;
@@ -216,7 +250,7 @@ export class Backdrop {
 
   private updateFloorMesh(camX: number, camY: number): void {
     const mesh = this.floor!;
-    const tileWorld = RENDER.floorTileWorld;
+    const tileWorld = this.tileWorldEff;
     const worldBottom = camY + H;
     const cx = W / 2;
     const C = this.cols;
@@ -391,6 +425,14 @@ export class Backdrop {
       }
     }
   }
+}
+
+/** Deterministic per-cell variant index from integer cell coords (stable hash). */
+function variantFor(x: number, y: number): number {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) >>> 0;
+  h = (h ^ (h >>> 13)) >>> 0;
+  h = Math.imul(h, 1274126177) >>> 0;
+  return h >>> 0;
 }
 
 /** Lerp between two 0xRRGGBB ints. */

@@ -114,7 +114,14 @@ export const RENDER = {
   // one-line flip: drop a seamless tile into public/textures/floors/arcade_floor_tile.png
   // (see that folder's README), set this true, and it rides the same recession.
   floorTexture: false, // procedural neon TRON grid (the arcade tile has baked perspective; flip true for a FLAT seamless tile)
-  floorTileWorld: 220, // world px one texture tile spans (bigger = fewer repeats + gentler perspective)
+  // Multi-tile floor (for the Neon Street stage): instead of repeating ONE tile,
+  // compose an N×N atlas where each cell deterministically picks one of the 4 neon-
+  // street variants (seeded by cell position) → no repetitive single-tile look. Needs
+  // floorTexture=true and the 4 variant tiles present; falls back to the single tile
+  // when false/absent. The Arcade stage keeps floorTexture=false (procedural grid).
+  floorTileVariants: false,
+  floorVariantAtlas: 4, // atlas is N×N cells (4 → 16-cell pattern before it repeats)
+  floorTileWorld: 220, // world px one tile/cell spans (bigger = fewer repeats + gentler perspective)
   maxSpread: 4, // cap on horizontal tile compression toward the horizon (lower = flatter/smoother; higher = pinchy trapezoids)
   floorTextureTint: 0xffffff, // mesh multiply tint NEAR (white = show colored art true); hazes to floorFar at the horizon
 
