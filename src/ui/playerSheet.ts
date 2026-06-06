@@ -46,18 +46,8 @@ interface SheetDef {
 }
 
 const SHEETS: SheetDef[] = [
-  {
-    key: 'sheet_roster',
-    file: 'sprites/heroes/_legacy/roster_sheet.webp',
-    frameWidth: 192,
-    frameHeight: 256,
-    displayHeight: 54,
-    bodyCenter: { x: 0.5, y: 0.62 },
-    targets: [
-      // brown green-dress girl. (Kōhai now uses her own 4-direction sheet — HERO_SHEETS.)
-      { id: 'sensei', frames: { down: 16, up: 18, side: 16 }, sideFacesRight: true },
-    ],
-  },
+  // Kōhai + Sensei now use their own 4-direction rect sheets (HERO_SHEETS); only
+  // the goth sheet (Rōnin) still uses the uniform-grid path.
   {
     key: 'sheet_goth',
     file: 'sprites/heroes/_legacy/goth_girl.webp',
@@ -117,6 +107,17 @@ const HERO_SHEETS: HeroRectSheet[] = [
     displayHeight: 60, // ~56–64px tall in-game
     bodyCenter: { x: 0.5, y: 0.66 },
     views: { down: [46, 363], up: [441, 724], side: [805, 1075] },
+    sideFlip: true, // frame 2 is side-LEFT → flip so the stored 'side' faces right
+  },
+  {
+    id: 'sensei',
+    file: 'sprites/heroes/sensei/sensei_4dir_transparent.webp',
+    key: 'sheet_sensei_4dir',
+    viewY: 227,
+    viewH: 567, // 794 − 227
+    displayHeight: 60,
+    bodyCenter: { x: 0.5, y: 0.66 },
+    views: { down: [104, 346], up: [492, 709], side: [828, 1078] },
     sideFlip: true, // frame 2 is side-LEFT → flip so the stored 'side' faces right
   },
 ];
