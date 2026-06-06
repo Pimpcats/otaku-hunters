@@ -69,7 +69,7 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
 
   // ── Neon-city parallax skyline (textures/parallax), far → near ──────────────
   { kind: 'single', id: 'parallaxFar', path: 'textures/parallax/arcade_far.webp', key: PARALLAX_KEYS[0], note: 'Far skyline (arcade), 1920×300, horizontally seamless.' },
-  { kind: 'single', id: 'parallaxMid', path: 'textures/parallax/arcade_mid.png', key: PARALLAX_KEYS[1], note: 'Mid skyline ~1920×300, tileable + transparent.' },
+  { kind: 'single', id: 'parallaxMid', path: 'textures/parallax/arcade_mid.webp', key: PARALLAX_KEYS[1], note: 'Mid skyline (arcade), 1774×887; horizontally tiled, bottom near the seam.' },
   { kind: 'single', id: 'parallaxNear', path: 'textures/parallax/arcade_near.webp', key: PARALLAX_KEYS[2], note: 'Near skyline (arcade), 1920×500, horizontally seamless; bottom meets the floor.' },
 
   // ── Enemies (sprites/enemies) — single front-facing frame, mirrored to facings ─
