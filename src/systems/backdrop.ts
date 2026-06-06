@@ -47,8 +47,10 @@ export class Backdrop {
   private sx: number[] = []; // screen x at each mesh column (bottom edge)
   private cols = COLS;
 
-  // Tiling parallax layers built from dropped-in skyline art (empty → procedural).
-  private skyline: { s: Phaser.GameObjects.TileSprite; strength: number; texH: number }[] = [];
+  // Tiling parallax layers, indexed by layer (0 = far … 2 = near). A slot holds a
+  // TileSprite when real skyline art was dropped in for that layer; layers left
+  // undefined fall back to the procedural silhouettes — so far/mid/near can mix.
+  private skyline: ({ s: Phaser.GameObjects.TileSprite; texH: number } | undefined)[] = [];
 
   constructor(private scene: Phaser.Scene) {
     this.g = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.ground);
@@ -63,17 +65,16 @@ export class Backdrop {
    *  drawParallax falls back to the procedural silhouettes. */
   private buildSkyline(): void {
     if (!RENDER.parallax) return;
-    const strengths = RENDER.parallaxStrength;
     for (let i = 0; i < PARALLAX_KEYS.length; i++) {
       const key = PARALLAX_KEYS[i];
-      if (!this.scene.textures.exists(key)) continue;
+      if (!this.scene.textures.exists(key)) continue; // this layer stays procedural
       const img = this.scene.textures.get(key).getSourceImage() as { height: number };
       const s = this.scene.add
         .tileSprite(0, 0, W, img.height || H, key)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(DEPTH.ground + 1 + i); // far background: above the sky gradient, behind the grid
-      this.skyline.push({ s, strength: strengths[i] ?? 0.3, texH: img.height || H });
+      this.skyline[i] = { s, texH: img.height || H };
     }
   }
 
@@ -282,37 +283,36 @@ export class Backdrop {
   private drawParallax(camX: number, camY: number, floorTop: number): void {
     const p = this.parallax;
     p.clear();
-    if (!RENDER.parallax) return;
-
-    // Real skyline art (if dropped in): horizontally-tiling layers anchored at the
-    // horizon seam, drifting slower than the camera. Replaces the procedural rects.
-    if (this.skyline.length) {
-      const show = floorTop > 1;
-      for (const layer of this.skyline) {
-        layer.s.setVisible(show);
-        if (!show) continue;
-        layer.s.y = floorTop - layer.texH; // strip's bottom rests on the seam
-        layer.s.tilePositionX = camX * layer.strength;
-        layer.s.tilePositionY = -camY * layer.strength * 0.05;
-      }
+    if (!RENDER.parallax) {
+      for (const layer of this.skyline) layer?.s.setVisible(false);
       return;
     }
-
-    if (floorTop <= 1) return; // only meaningful once there's a back wall
     const layers = RENDER.parallaxStrength;
+    const show = floorTop > 1; // parallax only reads once there's a back-wall band
     for (let i = 0; i < layers.length; i++) {
       const strength = layers[i];
-      // Nearer layers are taller + darker silhouettes; far layers hazier.
+      const layer = this.skyline[i];
+
+      // ── This layer has real skyline art → tiling TileSprite anchored at the seam ─
+      if (layer) {
+        layer.s.setVisible(show);
+        if (show) {
+          layer.s.y = floorTop - layer.texH; // strip's bottom rests on the horizon
+          layer.s.tilePositionX = camX * strength; // drift slower than the camera
+          layer.s.tilePositionY = -camY * strength * 0.05;
+        }
+        continue;
+      }
+
+      // ── Otherwise → procedural silhouette rectangles for this layer ──────────────
+      if (!show) continue;
       const sil = lerpColor(RENDER.skyBottom, 0x06040f, 0.2 + 0.22 * i);
       const bandH = floorTop * (0.5 + 0.25 * i);
       const yBase = floorTop - bandH;
-      // horizontal drift from camera x; gentle vertical drift from camera y
       const off = -(camX * strength) % (W * 0.5);
       p.fillStyle(sil, 0.45 + 0.15 * i);
-      // two tiles so the drift wraps seamlessly across the screen width
       for (let t = -1; t <= 1; t++) {
         const x = off + t * (W * 0.5);
-        // simple silhouette: staggered rectangles suggesting a far skyline
         for (let s = 0; s < 4; s++) {
           const bw = W * 0.12;
           const bx = x + s * (W * 0.13);

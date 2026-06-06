@@ -72,9 +72,9 @@ stand-in works) · ☐ missing (drop zone empty).
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)
 | File | Use | Status | Wired |
 |---|---|---|---|
-| `arcade_far.png` (~1920×200) | far skyline | ☐ (procedural rects) | ✓ |
-| `arcade_mid.png` (~1920×300) | mid buildings | ☐ (procedural rects) | ✓ |
-| `arcade_near.png` (~1920×350) | near neon | ☐ (procedural rects) | ✓ |
+| `arcade_far.webp` (1920×300) | far skyline | ✓ ready | ✓ **active** (image; mid/near still procedural) |
+| `arcade_mid.png` (~1920×300) | mid buildings | ☐ (procedural rects) | ✓ slot ready |
+| `arcade_near.png` (~1920×350) | near neon | ☐ (procedural rects) | ✓ slot ready |
 
 ## UI — `public/ui/` (transparent) — all **wire-on-request** (HUD is procedural today)
 | Folder | Files | Spec | Status |
