@@ -213,7 +213,8 @@ export class RunScene extends Phaser.Scene {
     if (!e) return;
     e.enableBody(true, x, y, true, true);
     e.setScale(arc.scale ?? 1);
-    e.setCircle(arc.hitRadius ?? 9, 0, 0);
+    const hr = arc.hitRadius ?? 9;
+    e.setCircle(hr, e.width / 2 - hr, e.height / 2 - hr); // centre the hitbox on the frame (art frames vary in size)
     e.setFlipX(false);
     e.setDepth(40);
     e.clearTint();
