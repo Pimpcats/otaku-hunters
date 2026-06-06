@@ -73,7 +73,7 @@ stand-in works) · ☐ missing (drop zone empty).
 | File | Use | Status | Wired |
 |---|---|---|---|
 | `arcade_far.webp` (1920×300) | far skyline | ✓ ready | ✓ **active** (image) |
-| `arcade_mid.png` | mid buildings | ☐ missing | procedural fallback — **send this to complete the set** |
+| `arcade_mid.webp` (1774×887) | mid buildings | ✓ ready | ✓ **active** (image) |
 | `arcade_near.webp` (1920×500) | near neon street | ✓ ready | ✓ **active** (image) |
 
 > Toggle `RENDER.useParallaxArt = false` to A/B against the all-procedural look.
