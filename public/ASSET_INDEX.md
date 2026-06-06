@@ -28,7 +28,7 @@ stand-in works) · ☐ missing (drop zone empty).
 | Legacy roster | `sprites/heroes/_legacy/roster_sheet.webp` | 8×4 @192×256 (Kōhai, Sensei) | ▣ placeholder | yes |
 | Legacy goth | `sprites/heroes/_legacy/goth_girl.webp` | 6×3 @256×341 (Rōnin) | ▣ placeholder | yes |
 | 後輩 Kōhai | `sprites/heroes/kohai/kohai_4dir_transparent.webp` | 4-dir static (1536×1024 sheet, rect-sliced) | ✓ **ready/active** | yes — down/up/side+flip, ~60px |
-| 先生 Sensei | `sprites/heroes/sensei/{idle,walk,attack}.png` | per-dir cycles | ☐ missing | wire-on-request |
+| 先生 Sensei | `sprites/heroes/sensei/sensei_4dir_transparent.webp` | 4-dir static (1536×1024 sheet, rect-sliced) | ✓ **ready/active** | yes — down/up/side+flip, ~60px |
 | 浪人 Rōnin | `sprites/heroes/ronin/{idle,walk,attack}.png` | per-dir cycles | ☐ missing | wire-on-request |
 
 ## Enemies — `public/sprites/enemies/` (~48×48, faces down, transparent)
