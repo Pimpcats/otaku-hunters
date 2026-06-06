@@ -45,29 +45,10 @@ interface SheetDef {
   targets: CharFrames[];
 }
 
-const SHEETS: SheetDef[] = [
-  // Kōhai + Sensei now use their own 4-direction rect sheets (HERO_SHEETS); only
-  // the goth sheet (Rōnin) still uses the uniform-grid path.
-  {
-    key: 'sheet_goth',
-    file: 'sprites/heroes/_legacy/goth_girl.webp',
-    frameWidth: 256,
-    frameHeight: 341,
-    displayHeight: 56,
-    bodyCenter: { x: 0.5, y: 0.6 },
-    targets: [
-      // The goth sheet is laid out as columns = direction, rows = animation
-      // frames, so each direction yields a clean 3-frame walk cycle:
-      //   front = col0 (0,6,12) · back = col3 (3,9,15) · side = col5 (5,11,17)
-      {
-        id: 'ronin',
-        frames: { down: 0, up: 3, side: 17 },
-        sideFacesRight: true,
-        walk: { down: [0, 6, 12], up: [3, 9, 15], side: [5, 11, 17] },
-      },
-    ],
-  },
-];
+// All three characters now use their own 4-direction rect sheets (HERO_SHEETS).
+// The uniform-grid path below stays available for any future grid sheet, but is
+// currently unused (so the load/bake/anim helpers simply iterate nothing).
+const SHEETS: SheetDef[] = [];
 
 // registry key → which sheet baked a given character (also the "art active" flag)
 const REG = (id: string) => `sheetActive:${id}`;
@@ -118,6 +99,17 @@ const HERO_SHEETS: HeroRectSheet[] = [
     displayHeight: 60,
     bodyCenter: { x: 0.5, y: 0.66 },
     views: { down: [104, 346], up: [492, 709], side: [828, 1078] },
+    sideFlip: true, // frame 2 is side-LEFT → flip so the stored 'side' faces right
+  },
+  {
+    id: 'ronin',
+    file: 'sprites/heroes/ronin/ronin_4dir_transparent.webp',
+    key: 'sheet_ronin_4dir',
+    viewY: 197,
+    viewH: 594, // 791 − 197
+    displayHeight: 60,
+    bodyCenter: { x: 0.5, y: 0.66 },
+    views: { down: [71, 375], up: [455, 720], side: [780, 1085] },
     sideFlip: true, // frame 2 is side-LEFT → flip so the stored 'side' faces right
   },
 ];

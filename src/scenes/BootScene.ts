@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { generatePlaceholderTextures } from '../ui/textures';
 import { bakePlayerSheets, loadPlayerSheets, registerPlayerAnims, loadHeroSheets, bakeHeroSheets } from '../ui/playerSheet';
 import { applyKenneyAssets, loadKenneyAssets } from '../ui/kenneyAssets';
-import { loadVoiceManifest } from '../audio/tts';
+import { loadVoiceManifest, loadVoiceFor } from '../audio/tts';
+import { CHARACTERS } from '../data/characters';
 import { getContentIndex } from '../data/contentIndex';
 import { FLOOR_TEXTURE_KEY } from '../systems/backdrop';
 
@@ -31,8 +32,12 @@ export class BootScene extends Phaser.Scene {
     // lands before the backdrop mesh reads FLOOR_TEXTURE_KEY in the run.
     applyKenneyAssets(this);
     generatePlaceholderTextures(this);
-    // Begin loading the VOICEVOX clip manifest (optional; Web Speech covers gaps).
+    // Begin loading VOICEVOX manifests (optional; Web Speech covers gaps): the
+    // shared set + each character's own per-voice set.
     void loadVoiceManifest();
+    for (const id of new Set(CHARACTERS.map((c) => c.voiceId).filter((v): v is number => v != null))) {
+      void loadVoiceFor(id);
+    }
     // Overlay each real sheet's directional frames onto its classes' facing keys,
     // then register the walk-cycle animations for sheets that support them.
     bakePlayerSheets(this);

@@ -17,6 +17,7 @@ export interface CharacterDef {
   baseMoveSpeed: number; // px/s
   startStats: Partial<Record<StatId, number>>; // starting passive levels
   art: CreatureSpec; // placeholder-sprite recipe
+  voiceId?: number; // VOICEVOX speaker id for this character's pre-generated voice
 }
 
 export const CHARACTERS: CharacterDef[] = [
@@ -31,6 +32,7 @@ export const CHARACTERS: CharacterDef[] = [
     baseMoveSpeed: 220,
     startStats: { growth: 1 }, // diligent junior levels a little faster
     art: { size: 24, body: 0x6ad7ff, accent: 0xffffff, shape: 'round', accessory: 'headband' },
+    voiceId: 0, // VOICEVOX 四国めたん (Shikoku Metan), あまあま/sweet
   },
   {
     id: 'sensei',
@@ -43,6 +45,7 @@ export const CHARACTERS: CharacterDef[] = [
     baseMoveSpeed: 184,
     startStats: { regen: 1, armor: 1 }, // tanky teacher shrugs off chip damage
     art: { size: 26, body: 0x7CFF9E, accent: 0xffe08a, shape: 'round', accessory: 'glasses' },
+    voiceId: 29, // VOICEVOX No.7, ノーマル/Normal
   },
   {
     id: 'ronin',
@@ -55,6 +58,7 @@ export const CHARACTERS: CharacterDef[] = [
     baseMoveSpeed: 268,
     startStats: { might: 1 },
     art: { size: 22, body: 0xff7ae0, accent: 0x2a2f55, shape: 'round', ears: 'cat', accessory: 'mask' },
+    voiceId: 94, // VOICEVOX 中部つるぎ (Chubu Tsurugi), ノーマル/Normal
   },
 ];
 
