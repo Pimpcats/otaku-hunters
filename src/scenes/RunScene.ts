@@ -711,6 +711,9 @@ export class RunScene extends Phaser.Scene {
       // Too-Cool walks backwards: mirror the facing vertically so moving toward you shows his back.
       const shown = arc.reverseFacing ? reverseDir(face) : face;
       applyFacing(e, arc.texture, shown, 'walk');
+      // Enemies live in a physics Group (not on the scene UpdateList), so their
+      // preUpdate never runs — advance walk animations manually each frame.
+      e.anims.update(time, delta);
       if (RENDER.ySort) e.setDepth(baselineY(e));
       this.shadows.sync(e);
     }
