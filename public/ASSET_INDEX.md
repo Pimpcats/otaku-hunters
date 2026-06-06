@@ -40,7 +40,7 @@ stand-in works) · ☐ missing (drop zone empty).
 | `toocool.webp` | Cool Fan 陽キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
 | `camera.webp` | Camera Otaku カメコ | ✓ **ready/active** | 4-view sheet (crouching), rect-sliced ~44px |
 | `wota.webp` | Idol Stan ヲタ芸 | ✓ **ready/active** | 4-view sheet (wide glowstick pose), rect-sliced ~44px |
-| `lurker.png` | Old Guard 古参 | ☐ (procedural) | single-frame ✓ |
+| `lurker.webp` | Old Guard 古参 | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px (grows with buff) |
 | `glomper.png` | Whale 重課金 | ☐ (procedural) | single-frame ✓ |
 | `boss_collector.png` | Ultimate Collector 究極コレクター (~128×128) | ☐ (procedural) | single-frame ✓ |
 

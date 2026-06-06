@@ -136,7 +136,15 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
     note: 'Idol Stan ヲタ芸 — 4-view sheet (1983×793), transparent, wide glowstick pose; rect-sliced ~44px.',
     sheet: { viewY: 41, viewH: 647, displayHeight: 44, views: { down: [113, 483], up: [621, 969], side: [1072, 1337] } },
   },
-  { kind: 'dir', id: 'kosan', path: 'sprites/enemies/lurker.png', base: TEX.kosan, sideFlip: false, note: 'Old Guard 古参, ~48px, faces down.' },
+  {
+    kind: 'dir',
+    id: 'kosan',
+    path: 'sprites/enemies/lurker.webp',
+    base: TEX.kosan,
+    sideFlip: true, // sheet's side view is side-LEFT → flip so baked 'side' faces right
+    note: 'Old Guard 古参 — 4-view sheet (1981×793), transparent; rect-sliced ~44px (grows with its lurk buff).',
+    sheet: { viewY: 100, viewH: 592, displayHeight: 44, views: { down: [125, 374], up: [607, 851], side: [1095, 1319] } },
+  },
   { kind: 'dir', id: 'jukakin', path: 'sprites/enemies/glomper.png', base: TEX.jukakin, sideFlip: false, note: 'Whale 重課金, ~48px, faces down.' },
   { kind: 'dir', id: 'boss', path: 'sprites/enemies/boss_collector.png', base: TEX.boss, sideFlip: false, note: 'The Ultimate Collector 究極コレクター — larger, ~128px, faces down.' },
 
