@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { generatePlaceholderTextures } from '../ui/textures';
-import { bakePlayerSheets, loadPlayerSheets, registerPlayerAnims } from '../ui/playerSheet';
+import { bakePlayerSheets, loadPlayerSheets, registerPlayerAnims, loadHeroSheets, bakeHeroSheets } from '../ui/playerSheet';
 import { applyKenneyAssets, loadKenneyAssets } from '../ui/kenneyAssets';
 import { loadVoiceManifest } from '../audio/tts';
 import { getContentIndex } from '../data/contentIndex';
@@ -15,6 +15,7 @@ export class BootScene extends Phaser.Scene {
   preload() {
     // Real player sprite sheets (optional — falls back to procedural art if absent).
     loadPlayerSheets(this);
+    loadHeroSheets(this); // per-character 4-direction rect sheets (e.g. Kōhai)
     // Optional CC0 Kenney drop-ins for enemies / projectiles / pickups / floor.
     // Any missing file is safe; that slot keeps its procedural/placeholder art.
     loadKenneyAssets(this);
@@ -36,6 +37,7 @@ export class BootScene extends Phaser.Scene {
     // then register the walk-cycle animations for sheets that support them.
     bakePlayerSheets(this);
     registerPlayerAnims(this);
+    bakeHeroSheets(this); // slice the rect hero sheets over their facing keys (overrides procedural)
 
     // Build the content index once up front so a malformed lessons.js surfaces
     // in the console here rather than mid-run (guardrail §8.7: never blocks).
