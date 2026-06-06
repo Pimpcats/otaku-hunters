@@ -34,7 +34,7 @@ export const PARALLAX_KEYS = ['env_parallax_far', 'env_parallax_mid', 'env_paral
 const HORIZON_FULL = 0.15; // horizon screen-y fraction at tilt = 1
 const PERSP = 5; // perspective compression strength at tilt = 1
 const COLS = 18; // mesh columns across the screen
-const MAX_SPREAD = 14; // clamp horizontal tile compression near the horizon
+// Horizontal tile-compression cap lives in RENDER.maxSpread (tunable).
 
 export class Backdrop {
   private g: Phaser.GameObjects.Graphics;
@@ -115,7 +115,7 @@ export class Backdrop {
       // Horizontal compression tied to the SAME rowY mapping (keeps tiles square-ish):
       // as a world tile's on-screen depth shrinks toward the horizon, tiles narrow too.
       const dRow = Math.max(0.001, this.rowY(d, tilt, floorTop) - this.rowY(d + tileWorld, tilt, floorTop));
-      this.spread.push(Phaser.Math.Clamp(baseStep / dRow, 1, MAX_SPREAD));
+      this.spread.push(Phaser.Math.Clamp(baseStep / dRow, 1, RENDER.maxSpread));
     }
 
     const C = this.cols;
