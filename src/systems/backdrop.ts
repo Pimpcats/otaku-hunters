@@ -40,6 +40,7 @@ const COLS = 18; // mesh columns across the screen
 export class Backdrop {
   private g: Phaser.GameObjects.Graphics;
   private parallax: Phaser.GameObjects.Graphics;
+  private gridGfx: Phaser.GameObjects.Graphics; // neon grid, drawn ADDITIVE so lines glow
 
   // Textured-floor mesh (only when RENDER.floorTexture and the texture loaded).
   private floor?: Phaser.GameObjects.Mesh;
@@ -56,6 +57,14 @@ export class Backdrop {
   constructor(private scene: Phaser.Scene) {
     this.g = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.ground);
     this.parallax = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.grid);
+    // The neon grid lives on its own ADDITIVE layer so the glow halos build up
+    // (and read as light, not paint) over the dark floor; the camera bloom post-FX
+    // then amplifies the bright cores into the TRON/Edgerunners glow.
+    this.gridGfx = scene.add
+      .graphics()
+      .setScrollFactor(0)
+      .setDepth(DEPTH.grid + 1)
+      .setBlendMode(Phaser.BlendModes.ADD);
     this.buildSkyline();
     if (RENDER.floorTexture && scene.textures.exists(FLOOR_TEXTURE_KEY)) {
       this.buildFloorMesh();
@@ -256,28 +265,76 @@ export class Backdrop {
       return;
     }
 
-    // ── Wireframe grid (fallback): horizontal floor lines bunching toward horizon ─
+    this.drawNeonGrid(camX, camY, tilt, floorTop, cx);
+  }
+
+  /** The neon TRON/Edgerunners floor: glowing cyan grid lines (magenta accents)
+   *  receding to the horizon. Each line is a stack of additive passes — a wide
+   *  faint halo down to a hot near-white core — so the lines read as light. Near
+   *  lines are thicker/brighter; everything fades and bunches toward the horizon. */
+  private drawNeonGrid(camX: number, camY: number, tilt: number, floorTop: number, cx: number): void {
+    const ng = this.gridGfx;
+    ng.clear();
     const grid = RENDER.gridSize;
     const scroll = RENDER.gridScroll;
+
+    // One glowing line = halo passes (build the glow) + a hot near-white core.
+    // `fade` 0 (horizon) → 1 (near) drives both brightness and width.
+    const glowLine = (x1: number, y1: number, x2: number, y2: number, color: number, fade: number): void => {
+      const w = RENDER.gridLineWidth * (0.45 + 0.55 * fade); // near = thicker
+      const a = 0.25 + 0.7 * fade; // near = brighter
+      ng.lineStyle(w * RENDER.gridGlowWidth, color, a * 0.09 * RENDER.gridGlow);
+      ng.lineBetween(x1, y1, x2, y2);
+      ng.lineStyle(w * (RENDER.gridGlowWidth * 0.45), color, a * 0.2 * RENDER.gridGlow);
+      ng.lineBetween(x1, y1, x2, y2);
+      ng.lineStyle(w, color, Phaser.Math.Clamp(a, 0, 1));
+      ng.lineBetween(x1, y1, x2, y2);
+      // Hot core: a thin near-white centre (additive → blows out to the TRON look,
+      // bloom catches it). Only on the brighter near half to keep the distance calm.
+      if (fade > 0.18) {
+        ng.lineStyle(Math.max(1, w * 0.45), 0xffffff, Phaser.Math.Clamp(a * 0.45, 0, 1));
+        ng.lineBetween(x1, y1, x2, y2);
+      }
+    };
+
+    const accentEvery = RENDER.gridAccentEvery | 0;
+    const lineColor = (row: number): number =>
+      accentEvery > 0 && row % accentEvery === 0 ? RENDER.gridAccentColor : RENDER.gridColor;
+
+    // ── Horizontal floor lines (bunch toward the horizon via rowY) ──────────────
     const worldBottom = camY + H;
     const phaseY = ((worldBottom * scroll) % grid + grid) % grid;
-    for (let k = 0; k < 80; k++) {
+    const baseRow = Math.floor((worldBottom * scroll) / grid); // stable index for accent striping
+    for (let k = 0; k < 140; k++) {
       const d = k * grid + phaseY; // world px back from the near edge
       const y = this.rowY(d, tilt, floorTop);
       if (y <= floorTop + 0.5) break; // receded past the horizon
       if (y > H) continue;
       const fade = Phaser.Math.Clamp((y - floorTop) / (H - floorTop), 0, 1);
-      g.lineStyle(1, lerpColor(RENDER.gridFar, RENDER.gridColor, fade), 0.18 + 0.5 * fade);
-      g.lineBetween(0, y, W, y);
+      glowLine(0, y, W, y, lineColor(baseRow - k), fade);
     }
-    // Vertical floor lines (constant world-X), converging toward the vanish.
+
+    // ── Vertical floor lines, converging to the vanishing x at the seam ─────────
+    // Drawn as fading segments so they brighten toward the near (bottom) edge like
+    // the horizontals, instead of a flat-alpha streak.
     const phaseX = ((camX * scroll) % grid + grid) % grid;
+    const baseCol = Math.floor((camX * scroll) / grid);
     const n = Math.ceil(W / grid) + 2;
+    const SEG = 8;
     for (let k = -1; k < n; k++) {
       const sxb = k * grid - phaseX; // x at the near (bottom) edge
       const sxt = Phaser.Math.Linear(sxb, cx, tilt); // converged x at the seam
-      g.lineStyle(1, RENDER.gridColor, 0.32);
-      g.lineBetween(sxb, H, sxt, floorTop);
+      const color = lineColor(baseCol + k);
+      let px = sxb;
+      let py = H;
+      for (let s = 1; s <= SEG; s++) {
+        const t = s / SEG; // 0 (bottom) → 1 (seam)
+        const nx = Phaser.Math.Linear(sxb, sxt, t);
+        const ny = Phaser.Math.Linear(H, floorTop, t);
+        glowLine(px, py, nx, ny, color, 1 - t);
+        px = nx;
+        py = ny;
+      }
     }
   }
 

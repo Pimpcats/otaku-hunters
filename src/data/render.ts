@@ -99,6 +99,13 @@ export const RENDER = {
   cameraHeightBias: 0.12, // shifts framing up as tilt rises so the swarm stays visible (0..1)
   gridSize: 72, // world px between floor grid lines
   gridScroll: 1.0, // how strongly the floor grid tracks camera movement
+  // Neon glow on the procedural grid (the TRON/Edgerunners floor; floorTexture=false).
+  // Each line is drawn as additive passes: a wide faint halo → a hot near-white core.
+  gridLineWidth: 2.2, // core line thickness at the NEAR edge (tapers to the horizon)
+  gridGlow: 1.0, // overall glow halo strength (0 = crisp lines, 1 = full bloom halo)
+  gridGlowWidth: 7, // halo spread as a multiple of the core width
+  gridAccentColor: 0xff37c0, // hot-magenta accent line colour (Edgerunners pink)
+  gridAccentEvery: 4, // every Nth grid line is the accent colour (0 = all cyan)
   // Real tiling floor texture (vs. the wireframe grid). Same perspective/rowY
   // recession either way — this just swaps the wireframe look for a real surface.
   // DEFAULT false: the glowing electric-cyan wireframe grid on near-black IS the
