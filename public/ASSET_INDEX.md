@@ -38,7 +38,7 @@ stand-in works) · ☐ missing (drop zone empty).
 | `merchmule.webp` | Merch-Mule 転売ヤー | ✓ **ready/active** | 4-view sheet (green-screen keyed), ~50px |
 | `anxious.webp` | Shy Fan 陰キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
 | `toocool.webp` | Cool Fan 陽キャ | ✓ **ready/active** | 4-view sheet, rect-sliced ~44px |
-| `camera.png` | Camera Otaku カメコ | ☐ (procedural) | single-frame ✓ |
+| `camera.webp` | Camera Otaku カメコ | ✓ **ready/active** | 4-view sheet (crouching), rect-sliced ~44px |
 | `wota.png` | Idol Stan ヲタ芸 | ☐ (procedural) | single-frame ✓ |
 | `lurker.png` | Old Guard 古参 | ☐ (procedural) | single-frame ✓ |
 | `glomper.png` | Whale 重課金 | ☐ (procedural) | single-frame ✓ |
