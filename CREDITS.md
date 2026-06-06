@@ -31,7 +31,7 @@ its source URL + license before committing.
 
 ## Audio
 Voice clips generated with [VOICEVOX](https://voicevox.hiroshiba.jp/) — free, open-source Japanese text-to-speech.
-Character voice: [speaker name TBD — will be filled in when we confirm which speaker ID we're using].
+Character voice: **VOICEVOX speaker/style id 2** (四国めたん / Shikoku Metan, normal — please confirm the exact character/style with `npm run audio:speakers`, then finalize this line per that character's terms).
 VOICEVOX is provided under the LGPL license. Individual character voice terms apply — see https://voicevox.hiroshiba.jp/ for details.
 
 Clips live in `public/audio/` with a `manifest.json` (`{ "clips": { "<jp>": { "n", "s"? } } }`)

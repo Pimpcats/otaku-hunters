@@ -62,7 +62,10 @@ export function stopAudio(): void {
 export function speak(text: string, opts: { rate?: number } = {}): void {
   if (!text) return;
   const rate = opts.rate ?? 1;
-  const clip = clips[normalize(text)] ?? clips[text];
+  // Hanasou's manifest keys keep spaces + punctuation (e.g. "わたしは トムです。"),
+  // and the game passes those exact strings, so match raw first; the punctuation-
+  // stripped form is a fallback for any manifest that happens to be keyed bare.
+  const clip = clips[text] ?? clips[normalize(text)];
   if (clip) {
     try {
       stopAudio();
