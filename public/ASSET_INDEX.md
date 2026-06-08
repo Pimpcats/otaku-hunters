@@ -119,6 +119,15 @@ be committed to the repo, then added to `art-manifest.json` (placeholder shows u
 | `prop_crates.png` | stacked crates (われもの注意) | 437×400 static | near |
 | `prop_bicycle.png` | parked bicycle (駐輪禁止) | 450×396 static | near |
 | `prop_sale_sign.png` | A-frame neon セール sign | 303×500 static | near |
+| `facade_anime_shop.png` | アニメ shop storefront | 768×512 static | back wall |
+| `facade_game_center.png` | ゲーセン storefront | 768×512 static | back wall |
+| `facade_karaoke.png` | カラオケ storefront | 768×512 static | back wall |
+| `facade_konbini.png` | コンビニ storefront | 768×512 static | back wall |
+
+> **Facade back wall** (`systems/facadeWall.ts`): the 4 front-view facades tile a continuous,
+> pooled storefront wall along each street seam — world-space (zooms + scrolls 1:1 with the
+> camera), depth-banded BEHIND entities/props and IN FRONT of the parallax. Until the PNGs
+> land, 4 procedural placeholder facades stand in.
 
 > To activate any prop: commit the PNG to `public/sprites/props/<file>` and add its path to
 > `public/art-manifest.json`. The loader (`ui/props.ts`) slices it (spritesheets) + registers

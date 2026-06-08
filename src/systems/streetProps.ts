@@ -34,15 +34,15 @@ interface PropSpec {
   ph: Placeholder; // procedural fallback style
 }
 
-// FAR (storefront) edge — tall props.
+// FAR (storefront) edge — freestanding ground props in FRONT of the facade wall
+// (the continuous building wall itself is systems/facadeWall.ts, a separate layer).
 const TOP_KINDS: PropSpec[] = [
   { tex: 'prop_power_pole', targetH: 132, ph: 'pole' },
-  { tex: 'prop_arcade', anim: 'prop_arcade_idle', targetH: 82, ph: 'building' },
+  { tex: 'prop_arcade', anim: 'prop_arcade_idle', targetH: 82, ph: 'vending' },
   { tex: 'prop_vending', anim: 'prop_vending_idle', targetH: 76, ph: 'vending' },
   { tex: 'prop_signs', anim: 'sign_gesen', targetH: 40, ph: 'sign' },
   { tex: 'prop_signs', anim: 'sign_karaoke', targetH: 62, ph: 'vsign' },
   { tex: 'prop_signs', anim: 'sign_ramen', targetH: 40, ph: 'sign' },
-  { targetH: 150, ph: 'tower' }, // pure-procedural tall building filler (no art slot)
 ];
 
 // NEAR (foreground) edge — short occluders.

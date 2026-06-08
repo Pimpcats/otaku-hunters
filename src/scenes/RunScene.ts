@@ -31,6 +31,7 @@ import { ShadowLayer } from '../systems/shadows';
 import { Backdrop } from '../systems/backdrop';
 import { Atmosphere } from '../ui/atmosphere';
 import { StreetProps } from '../systems/streetProps';
+import { FacadeWall } from '../systems/facadeWall';
 import type { HudScene } from './HudScene';
 import { readingOf } from '../systems/romaji';
 
@@ -73,6 +74,7 @@ export class RunScene extends Phaser.Scene {
   private controls!: InputController;
   private ground!: Backdrop;
   private props!: StreetProps;
+  private facades!: FacadeWall;
   private shadows!: ShadowLayer;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
@@ -155,6 +157,8 @@ export class RunScene extends Phaser.Scene {
 
     // Layer 3: the tilted FLOOR plane only (the sky/parallax half lives on Background).
     this.ground = new Backdrop(this, { layer: 'floor' });
+    // Layer 2: the building-facade back wall (pooled, behind entities, in front of parallax).
+    this.facades = new FacadeWall(this);
     // World-space street-corridor props (storefronts/signs/vending + foreground occluders).
     this.props = new StreetProps(this, WORLD, WORLD);
 
@@ -215,6 +219,7 @@ export class RunScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       stopAudio();
       this.props.destroy();
+      this.facades.destroy();
       this.scene.stop('Background');
       this.scene.stop('Hud');
     });
@@ -846,7 +851,8 @@ export class RunScene extends Phaser.Scene {
     this.elapsed += dt;
     const stats = this.loadout.stats();
 
-    this.ground.update(); // redraw the tilted floor + parallax for the camera's position
+    this.ground.update(); // redraw the tilted floor for the camera's position
+    this.facades.update(); // pool the facade back-wall across the current view
 
     // movement + 4-direction facing
     this.controls.getDirection(this.dir);

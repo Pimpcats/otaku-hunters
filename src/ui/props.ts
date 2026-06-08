@@ -64,7 +64,12 @@ export const PROP_SHEETS: PropSheet[] = [
       { key: 'sign_ramen', frames: [8, 9, 10, 11], frameRate: 3 }, // ラーメン (amber, steam)
     ],
   },
-  // ── Static ───────────────────────────────────────────────────────────────────
+  // ── Building facades (static front-view storefronts; the street "back wall") ──
+  { id: 'facade_anime_shop', path: 'sprites/props/facade_anime_shop.png' },
+  { id: 'facade_game_center', path: 'sprites/props/facade_game_center.png' },
+  { id: 'facade_karaoke', path: 'sprites/props/facade_karaoke.png' },
+  { id: 'facade_konbini', path: 'sprites/props/facade_konbini.png' },
+  // ── Static props ─────────────────────────────────────────────────────────────
   { id: 'prop_power_pole', path: 'sprites/props/prop_power_pole.png' },
   { id: 'prop_railing', path: 'sprites/props/prop_railing.png' },
   { id: 'prop_cat_trashcan', path: 'sprites/props/prop_cat_trashcan.png' },
@@ -72,6 +77,9 @@ export const PROP_SHEETS: PropSheet[] = [
   { id: 'prop_bicycle', path: 'sprites/props/prop_bicycle.png' },
   { id: 'prop_sale_sign', path: 'sprites/props/prop_sale_sign.png' },
 ];
+
+// The 4 building-facade texture ids, in a stable order (systems/facadeWall.ts tiles them).
+export const FACADE_IDS = ['facade_anime_shop', 'facade_game_center', 'facade_karaoke', 'facade_konbini'] as const;
 
 const MANIFEST_KEY = 'art_manifest';
 
