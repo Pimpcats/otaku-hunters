@@ -100,7 +100,7 @@ export const RENDER = {
   // sky" framing; ~1.8 puts the player at street level. The world (floor, props,
   // entities) zooms together; the HUD and the distant parallax skyline are rendered
   // on separate non-zoom cameras so they stay screen-scale (no pixelation).
-  cameraZoom: 1.8,
+  cameraZoom: 1.1,
 
   // ── Street-corridor props (systems/streetProps.ts) ───────────────────────────
   // World-space neon-street dressing placed along the top (far) + bottom (near) edges
