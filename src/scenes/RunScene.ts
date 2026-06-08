@@ -161,6 +161,8 @@ export class RunScene extends Phaser.Scene {
     if (STAGE_LAYERS.facades) this.facades = new FacadeWall(this); // storefront back wall
     if (STAGE_LAYERS.props) this.props = new StreetProps(this, WORLD, WORLD); // street props
 
+    this.buildStreet();
+
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
     this.player.setCollideWorldBounds(true);
@@ -225,6 +227,20 @@ export class RunScene extends Phaser.Scene {
       this.scene.stop('Background');
       this.scene.stop('Hud');
     });
+  }
+
+  /** Asset-by-asset street build (public/assets pipeline). Flat neon ground tile filling
+   *  the world (scrolls with the camera, the tile carries the diagonal curb/sidewalk), plus
+   *  one storefront on the north sidewalk — bottom-center origin + y-sorted. Tunables inline
+   *  while we dial it in. */
+  private buildStreet() {
+    if (this.textures.exists('ground_neon')) {
+      this.add.tileSprite(0, 0, WORLD, WORLD, 'ground_neon').setOrigin(0, 0).setDepth(-100000);
+    }
+    if (this.textures.exists('anime_shop')) {
+      const shop = this.add.image(WORLD / 2, WORLD / 2 - 40, 'anime_shop').setOrigin(0.5, 1).setScale(0.28);
+      shop.setDepth(shop.y); // base-y depth-sort: sprites further south (larger y) overlap it
+    }
   }
 
   private openPause() {

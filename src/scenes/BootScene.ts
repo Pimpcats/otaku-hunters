@@ -32,6 +32,19 @@ export class BootScene extends Phaser.Scene {
     // A Kenney floor.png (loaded above) overrides this in create(); if neither is
     // present the backdrop falls back to the wireframe grid.
     this.load.image(FLOOR_TEXTURE_KEY, `${import.meta.env.BASE_URL}textures/floors/floor_placeholder.png`);
+
+    // ── New asset-by-asset street build (public/assets/ pipeline) ──────────────
+    // Direct loads (files committed to the repo). NOTE vs the request: storefronts
+    // live under assets/storefronts/ (not assets/buildings/storefronts/), and the
+    // ground file is ground_neon_v3.png (no plain ground_neon.png) — keyed 'ground_neon'.
+    const A = `${import.meta.env.BASE_URL}assets/`;
+    this.load.image('ground_neon', `${A}ground/ground_neon_v3.png`);
+    for (const k of ['anime_shop', 'game_center', 'karaoke', 'konbini']) {
+      this.load.image(k, `${A}storefronts/${k}.png`);
+    }
+    for (const k of ['utility_wall', 'alley_gap', 'poster_wall', 'service_shutter', 'apartment_wall', 'izakaya', 'hotel', 'pharmacy']) {
+      this.load.image(k, `${A}buildings/exteriors/${k}.png`);
+    }
   }
 
   create() {
