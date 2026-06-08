@@ -26,7 +26,7 @@ import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToDir8, reverseDir, type FacingDir } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
 import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
-import { RENDER, DEPTH, baselineY } from '../data/render';
+import { RENDER, DEPTH, baselineY, STAGE_LAYERS } from '../data/render';
 import { ShadowLayer } from '../systems/shadows';
 import { Backdrop } from '../systems/backdrop';
 import { Atmosphere } from '../ui/atmosphere';
@@ -72,9 +72,9 @@ export class RunScene extends Phaser.Scene {
   private weapon!: WeaponManager;
   private spawner!: Spawner;
   private controls!: InputController;
-  private ground!: Backdrop;
-  private props!: StreetProps;
-  private facades!: FacadeWall;
+  private ground?: Backdrop;
+  private props?: StreetProps;
+  private facades?: FacadeWall;
   private shadows!: ShadowLayer;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
@@ -152,15 +152,14 @@ export class RunScene extends Phaser.Scene {
     // Sibling scenes: the distant skyline (behind, un-zoomed) and the HUD (in front,
     // un-zoomed). Launched in parallel so the gameplay camera can zoom the world while
     // they stay screen-scale. Stopped again in this scene's SHUTDOWN handler.
-    this.scene.launch('Background');
+    // (Background is gated by the asset-assessment toggle; the HUD always shows.)
+    if (STAGE_LAYERS.background) this.scene.launch('Background');
     this.scene.launch('Hud');
 
-    // Layer 3: the tilted FLOOR plane only (the sky/parallax half lives on Background).
-    this.ground = new Backdrop(this, { layer: 'floor' });
-    // Layer 2: the building-facade back wall (pooled, behind entities, in front of parallax).
-    this.facades = new FacadeWall(this);
-    // World-space street-corridor props (storefronts/signs/vending + foreground occluders).
-    this.props = new StreetProps(this, WORLD, WORLD);
+    // Environment layers, each gated by STAGE_LAYERS so we can assess them one at a time.
+    if (STAGE_LAYERS.floor) this.ground = new Backdrop(this, { layer: 'floor' }); // tilted FLOOR plane
+    if (STAGE_LAYERS.facades) this.facades = new FacadeWall(this); // storefront back wall
+    if (STAGE_LAYERS.props) this.props = new StreetProps(this, WORLD, WORLD); // street props
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
@@ -181,6 +180,7 @@ export class RunScene extends Phaser.Scene {
     this.rig = this.add.sprite(this.player.x, this.player.y, dirTextureKey(this.character.texture, 'down'));
     this.rig.setScale(this.player.scaleX, this.player.scaleY);
     this.rig.setDepth(50);
+    this.rig.setVisible(STAGE_LAYERS.actors); // hidden in asset-assessment mode (camera still pans)
     initWalkBob(this.rig);
 
     this.shadows = new ShadowLayer(this);
@@ -206,6 +206,8 @@ export class RunScene extends Phaser.Scene {
     // Floating HP bar above the player (world-space).
     this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(DEPTH.hpBar);
     this.hpBarFill = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hp).setOrigin(0, 0.5).setDepth(DEPTH.hpBar + 1);
+    this.hpBarBack.setVisible(STAGE_LAYERS.actors);
+    this.hpBarFill.setVisible(STAGE_LAYERS.actors);
 
     // Layer 5: the neon bloom/saturate post-FX on THIS (zoomed) camera so the world
     // glows; the screen-space vignette/grade overlay lives on the HUD scene.
@@ -218,8 +220,8 @@ export class RunScene extends Phaser.Scene {
     // Tear down the sibling scenes + stop any voice clip when the run ends.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       stopAudio();
-      this.props.destroy();
-      this.facades.destroy();
+      this.props?.destroy();
+      this.facades?.destroy();
       this.scene.stop('Background');
       this.scene.stop('Hud');
     });
@@ -851,8 +853,8 @@ export class RunScene extends Phaser.Scene {
     this.elapsed += dt;
     const stats = this.loadout.stats();
 
-    this.ground.update(); // redraw the tilted floor for the camera's position
-    this.facades.update(); // pool the facade back-wall across the current view
+    this.ground?.update(); // redraw the tilted floor for the camera's position
+    this.facades?.update(); // pool the facade back-wall across the current view
 
     // movement + 4-direction facing
     this.controls.getDirection(this.dir);
@@ -865,12 +867,16 @@ export class RunScene extends Phaser.Scene {
     // Layer 1: y-sort by the BODY baseline (not the bobbing rig) so depth is stable.
     if (RENDER.ySort) this.rig.setDepth(baselineY(this.player));
     // Layer 2: shadow planted at the body baseline (does not bob with the rig).
-    this.shadows.sync(this.player, {
-      x: this.player.x,
-      baseY: baselineY(this.player),
-      width: this.rig.displayWidth,
-      height: this.player.displayHeight,
-    });
+    if (STAGE_LAYERS.actors) {
+      this.shadows.sync(this.player, {
+        x: this.player.x,
+        baseY: baselineY(this.player),
+        width: this.rig.displayWidth,
+        height: this.player.displayHeight,
+      });
+    } else {
+      this.shadows.hide(this.player);
+    }
 
     // enemy AI + facing (from their resulting velocity)
     let slow = 1; // Glomper latch debuff, recomputed each frame
@@ -911,8 +917,10 @@ export class RunScene extends Phaser.Scene {
     }
     this.playerSlow = slow; // applied to move speed next frame (imperceptible latency)
 
-    // weapons
-    this.weapon.update(time, this.player.x, this.player.y, this.enemies, this.dealDamage);
+    // weapons (skipped in asset-assessment mode — no actors)
+    if (STAGE_LAYERS.actors) {
+      this.weapon.update(time, this.player.x, this.player.y, this.enemies, this.dealDamage);
+    }
 
     // XP magnet (scaled by Collector's Magnet); capsules pull from a touch farther.
     this.magnetize(this.gems, PLAYER_BASE.pickupRadius * stats.magnet, 280);
@@ -939,14 +947,16 @@ export class RunScene extends Phaser.Scene {
     if (stats.regen > 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + stats.regen * dt);
     this.updateHpBar();
 
-    // spawning + boss
-    if (!this.bossSpawned && this.elapsed >= BOSS_TIME) this.spawnBoss();
-    // One guaranteed early capsule so the evolution payoff is always discovered.
-    if (!this.gachaSeeded && this.elapsed >= GACHA.firstDropTime) {
-      this.gachaSeeded = true;
-      this.dropGacha(this.player.x + 70, this.player.y);
+    // spawning + boss (skipped in asset-assessment mode — enemies hidden/not spawned)
+    if (STAGE_LAYERS.actors) {
+      if (!this.bossSpawned && this.elapsed >= BOSS_TIME) this.spawnBoss();
+      // One guaranteed early capsule so the evolution payoff is always discovered.
+      if (!this.gachaSeeded && this.elapsed >= GACHA.firstDropTime) {
+        this.gachaSeeded = true;
+        this.dropGacha(this.player.x + 70, this.player.y);
+      }
+      this.spawner.update(delta, this.elapsed, this.player.x, this.player.y, this.countActive(this.enemies));
     }
-    this.spawner.update(delta, this.elapsed, this.player.x, this.player.y, this.countActive(this.enemies));
 
     (this.scene.get('Hud') as HudScene | undefined)?.hud?.update({
       level: this.level,

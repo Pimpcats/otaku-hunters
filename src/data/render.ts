@@ -82,6 +82,18 @@ export const LOOKS: Record<string, Look> = {
 export const ACTIVE_LOOK: keyof typeof LOOKS = 'neon';
 const L = LOOKS[ACTIVE_LOOK];
 
+// ── Stage layer toggles (asset-by-asset assessment scaffold) ───────────────────
+// Temporary blank-canvas switches so we can bring environment layers back ONE AT A
+// TIME and judge each. Flip a flag true to re-enable that layer. (Set them all true
+// to restore the full street scene.)
+export const STAGE_LAYERS = {
+  background: false, // sky gradient + parallax skyline (BackgroundScene)
+  floor: false, // the tilted ground plane / street tiles
+  facades: false, // storefront back-wall (FacadeWall)
+  props: false, // street props (vending / lanterns / signs / crates / …)
+  actors: false, // player character + enemy spawning (hidden / not spawned when false)
+};
+
 export const RENDER = {
   // ── Camera ───────────────────────────────────────────────────────────────────
   // How far the gameplay camera zooms IN on the action. 1 = the old "watch from the
