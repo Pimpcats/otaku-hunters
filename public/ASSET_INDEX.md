@@ -101,14 +101,29 @@ fall back to procedural neon-rectangle placeholders, so the spatial layout is tu
 (`RENDER.streetWidth / propDensity / propScale / foregroundOccluderAlpha`) and art swaps
 in with no layout change.
 
-| File | Use | Sheet spec | Status | Wired |
-|---|---|---|---|---|
-| `vending_machine.png` | 自販機 neon vending machine (animated idle: neon trim cycles, can drops) | 2048×768, 4 frames in a row (512×768 each) → `prop_vending_idle` @3fps, scaled ~76px tall | ☐ **awaiting binary** (art delivered but the PNG must be committed to the repo) | ✓ loader + anim wired (`ui/props.ts`); placeholder shows until the file + its manifest line land |
+Placement (`systems/streetProps.ts`): TALL props line the FAR storefront edge (y-sorted),
+SHORT props occlude on the NEAR edge (`foregroundOccluderAlpha`), and lanterns hang
+OVERHEAD (fixed high depth, not y-sorted). All are wired but **awaiting binaries** — the
+art was delivered as inline previews, which Claude Code can't write to disk; each PNG must
+be committed to the repo, then added to `art-manifest.json` (placeholder shows until both).
 
-> To activate the vending machine: commit the PNG to `public/sprites/props/vending_machine.png`
-> and add `"sprites/props/vending_machine.png"` to `public/art-manifest.json`. The loader
-> slices it (512×768), registers `prop_vending_idle`, and `StreetProps` uses the animated
-> sprite instead of the placeholder automatically.
+| File | Use | Sheet spec → anim(s) | Edge |
+|---|---|---|---|
+| `prop_vending_machine.png` | 自販機 vending machine (trim cycles, can drops) | 2048×768, 4×(512×768) → `prop_vending_idle` @3 | far |
+| `prop_arcade_cabinet.png` | arcade cabinet (attract-mode screen) | 2001×786, 4×(500×786) → `prop_arcade_idle` @2 | far |
+| `prop_lanterns.png` | 祭 festival lanterns (sway) | 2048×768, 4×(512×768) → `prop_lanterns_idle` @2 | overhead |
+| `prop_neon_signs.png` | 3 signs in one sheet | 1536×1024, 3 rows×4 cols (384×341) → `sign_gesen` 0–3, `sign_karaoke` 4–7, `sign_ramen` 8–11 @3 | far |
+| `prop_power_pole.png` | power pole + wires (高圧注意) | 400×646 static | far |
+| `prop_railing.png` | street barrier/railing | 343×300 static | near |
+| `prop_cat_trashcan.png` | trash can + black cat (不法投棄) | 350×427 static | near |
+| `prop_crates.png` | stacked crates (われもの注意) | 437×400 static | near |
+| `prop_bicycle.png` | parked bicycle (駐輪禁止) | 450×396 static | near |
+| `prop_sale_sign.png` | A-frame neon セール sign | 303×500 static | near |
+
+> To activate any prop: commit the PNG to `public/sprites/props/<file>` and add its path to
+> `public/art-manifest.json`. The loader (`ui/props.ts`) slices it (spritesheets) + registers
+> its anim(s); `StreetProps` then uses the real animated/static sprite instead of the
+> procedural placeholder automatically — no layout change.
 
 ## UI — `public/ui/` (transparent) — all **wire-on-request** (HUD is procedural today)
 | Folder | Files | Spec | Status |
