@@ -32,6 +32,8 @@ import { Backdrop } from '../systems/backdrop';
 import { Atmosphere } from '../ui/atmosphere';
 import { StreetProps } from '../systems/streetProps';
 import { FacadeWall } from '../systems/facadeWall';
+import { BuildingEditor } from '../systems/buildingEditor';
+import { buildingScale } from '../data/buildings';
 import type { HudScene } from './HudScene';
 import { readingOf } from '../systems/romaji';
 
@@ -75,6 +77,8 @@ export class RunScene extends Phaser.Scene {
   private ground?: Backdrop;
   private props?: StreetProps;
   private facades?: FacadeWall;
+  private buildings: Phaser.GameObjects.Image[] = []; // editable street buildings
+  private editor!: BuildingEditor;
   private shadows!: ShadowLayer;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
@@ -162,6 +166,8 @@ export class RunScene extends Phaser.Scene {
     if (STAGE_LAYERS.props) this.props = new StreetProps(this, WORLD, WORLD); // street props
 
     this.buildStreet();
+    // Dev tool: press E to place/drag/rotate buildings and export their coords (see console).
+    this.editor = new BuildingEditor(this, this.buildings, (k, x, y) => this.addBuilding(k, x, y));
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
@@ -229,33 +235,42 @@ export class RunScene extends Phaser.Scene {
     });
   }
 
-  /** Asset-by-asset street build (public/assets pipeline): the east–west ground band plus
-   *  the north-wall buildings laid out along the 16° isometric wall line. */
+  /** Asset-by-asset street build: the east–west ground band + the starting north-wall
+   *  buildings. Positions are dialed in live via the in-game editor (press E) and pasted back
+   *  here. Buildings are screen-space (scrollFactor 0) at zoom 1.0, so x/y are screen pixels. */
   private buildStreet() {
     if (this.textures.exists('ground_neon')) {
       // The street runs EAST–WEST: tile the ground only along X (its length), as a single
-      // fixed-Y cross-section (sidewalk → curb → road), NOT a vertical repeat. A TileSprite
-      // WORLD wide but exactly one tile tall repeats horizontally only.
+      // fixed-Y cross-section (sidewalk → curb → road), NOT a vertical repeat.
       this.add
         .tileSprite(0, RunScene.STREET_TOP_Y, WORLD, RunScene.TILE_H, 'ground_neon')
         .setOrigin(0, 0)
         .setDepth(-100000);
     }
-    // North-wall buildings, exact composed layout along the 16° iso wall line
-    // wallY(x) = BASE_Y − x·tan(16°). Screen-space (scrollFactor 0) at the given pixels so
-    // the layout is 1:1 at zoom 1.0; origin bottom-center, scale 0.4; depth = base y so the
-    // FRONT (lower-left) buildings overlap the ones receding up-right behind them.
-    const WALL: { key: string; x: number; y: number }[] = [
+    // Starting north-wall layout (edit live with E, then P to export new coords).
+    const START: { key: string; x: number; y: number; angle?: number }[] = [
       { key: 'anime_shop', x: 200, y: 350 },
       { key: 'utility_wall', x: 310, y: 318 },
       { key: 'game_center', x: 420, y: 316 },
       { key: 'poster_wall', x: 530, y: 284 },
       { key: 'karaoke', x: 640, y: 252 },
     ];
-    for (const b of WALL) {
-      if (!this.textures.exists(b.key)) continue;
-      this.add.image(b.x, b.y, b.key).setOrigin(0.5, 1).setScale(0.4).setScrollFactor(0).setDepth(b.y);
-    }
+    for (const b of START) this.addBuilding(b.key, b.x, b.y, b.angle);
+  }
+
+  /** Add one screen-space building (origin bottom-center, type-scaled, base-y depth-sorted)
+   *  and register it for the editor. Returns the image so the editor can place/track it. */
+  private addBuilding(key: string, x: number, y: number, angle = 0): Phaser.GameObjects.Image {
+    const img = this.add
+      .image(x, y, key)
+      .setOrigin(0.5, 1)
+      .setScale(buildingScale(key))
+      .setScrollFactor(0)
+      .setDepth(y)
+      .setAngle(angle);
+    img.setData('key', key);
+    this.buildings.push(img);
+    return img;
   }
 
   private static readonly TILE_H = 887; // ground_neon tile height (one street cross-section)
@@ -892,6 +907,7 @@ export class RunScene extends Phaser.Scene {
 
     // movement + 4-direction facing
     this.controls.getDirection(this.dir);
+    if (this.editor?.active) this.dir.set(0, 0); // editor owns the arrow keys (nudge); freeze the player
     const speed = this.character.baseMoveSpeed * stats.moveSpeed * this.playerSlow;
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(this.dir.x * speed, this.dir.y * speed);
     const moving = this.dir.x !== 0 || this.dir.y !== 0;
