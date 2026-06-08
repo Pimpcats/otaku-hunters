@@ -238,11 +238,17 @@ export class RunScene extends Phaser.Scene {
    *  building's feet go on the sidewalk, SIDEWALK_SETBACK world-px north of (behind) the curb. */
   private buildStreet() {
     if (this.textures.exists('ground_neon')) {
-      this.add.tileSprite(0, 0, WORLD, WORLD, 'ground_neon').setOrigin(0, 0).setDepth(-100000);
+      // The street runs EAST–WEST: tile the ground only along X (its length), as a single
+      // fixed-Y cross-section (sidewalk → curb → road), NOT a vertical repeat. A TileSprite
+      // WORLD wide but exactly one tile tall repeats horizontally only.
+      this.add
+        .tileSprite(0, RunScene.STREET_TOP_Y, WORLD, RunScene.TILE_H, 'ground_neon')
+        .setOrigin(0, 0)
+        .setDepth(-100000);
     }
     if (this.textures.exists('anime_shop')) {
       const shopX = WORLD / 2;
-      const baseY = this.sidewalkBaseY(shopX, WORLD / 2); // feet on concrete near spawn
+      const baseY = this.sidewalkBaseY(shopX); // feet on the concrete behind the curb
       const shop = this.add.image(shopX, baseY, 'anime_shop').setOrigin(0.5, 1).setScale(0.28);
       shop.setDepth(baseY); // base-y depth-sort: sprites further south (larger y) overlap it
     }
@@ -254,15 +260,14 @@ export class RunScene extends Phaser.Scene {
   private static readonly CURB_M = -0.068; // curb tileY slope across tileX
   private static readonly CURB_B = 384.7; // curb tileY intercept
   private static readonly SIDEWALK_SETBACK = 240; // world-px a building's feet sit north of (behind) the curb
+  private static readonly STREET_TOP_Y = 1774; // world Y of the single street band's top edge (tileY 0)
 
-  /** World Y at which a building's feet should sit to land on the sidewalk concrete at
-   *  world X `x`, choosing the curb band nearest `nearY` and stepping back onto the concrete. */
-  private sidewalkBaseY(x: number, nearY: number): number {
-    const { TILE_W, TILE_H, CURB_M, CURB_B, SIDEWALK_SETBACK } = RunScene;
+  /** World Y at which a building's feet sit to land on the sidewalk concrete at world X `x`:
+   *  the curb on the fixed street band, stepped back north onto the concrete. */
+  private sidewalkBaseY(x: number): number {
+    const { TILE_W, CURB_M, CURB_B, SIDEWALK_SETBACK, STREET_TOP_Y } = RunScene;
     const tileX = ((x % TILE_W) + TILE_W) % TILE_W;
-    const curbTileY = CURB_M * tileX + CURB_B; // curb's Y within the tile at this X
-    const band = Math.round((nearY - curbTileY) / TILE_H); // pick the curb repeat nearest nearY
-    const curbWorldY = band * TILE_H + curbTileY;
+    const curbWorldY = STREET_TOP_Y + (CURB_M * tileX + CURB_B); // curb's Y on the band at this X
     return curbWorldY - SIDEWALK_SETBACK; // step back north onto the concrete
   }
 
