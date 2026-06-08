@@ -37,6 +37,11 @@ export const PARALLAX_KEYS = ['env_parallax_far', 'env_parallax_mid', 'env_paral
 // public/textures/floors/neon_street_tile_{a,b,c,d}.* and list it in art-manifest.json.
 export const FLOOR_VARIANT_KEYS = ['floor_var_a', 'floor_var_b', 'floor_var_c', 'floor_var_d'] as const;
 
+// Newer outdoor neon-street tiles (floor_street_{a,b,c,d}). When all four are present they
+// SUPERSEDE the FLOOR_VARIANT_KEYS set above as the variant-atlas source (better quality +
+// tiling); absent → the atlas falls back to FLOOR_VARIANT_KEYS so nothing breaks.
+export const OUTDOOR_FLOOR_KEYS = ['floor_street_a', 'floor_street_b', 'floor_street_c', 'floor_street_d'] as const;
+
 // Sky/back-wall band height (and floor horizon) = H * RENDER.horizonFrac.
 const floorTopY = (): number => H * Phaser.Math.Clamp(RENDER.horizonFrac, 0.02, 0.9);
 const PERSP = 5; // perspective compression strength at tilt = 1
@@ -106,7 +111,12 @@ export class Backdrop {
    *  No-op unless RENDER.floorTileVariants is on and all four variant tiles are present. */
   private maybeBuildVariantAtlas(): void {
     if (!RENDER.floorTileVariants) return;
-    if (!FLOOR_VARIANT_KEYS.every((k) => this.scene.textures.exists(k))) return; // need all 4
+    // Prefer the newer outdoor floor_street tiles when all four are present; else the
+    // original neon_street variant set. Need a full set of 4 either way.
+    const srcKeys = OUTDOOR_FLOOR_KEYS.every((k) => this.scene.textures.exists(k))
+      ? OUTDOOR_FLOOR_KEYS
+      : FLOOR_VARIANT_KEYS;
+    if (!srcKeys.every((k) => this.scene.textures.exists(k))) return; // need all 4
     const N = Math.max(2, RENDER.floorVariantAtlas | 0);
     const cell = 256; // atlas cell px (downscaled from the 512 source tiles)
     const size = N * cell; // POT when N is a power of two → clean mipmaps
@@ -115,7 +125,7 @@ export class Backdrop {
     if (!t) return;
     const ctx = t.getContext();
     ctx.imageSmoothingEnabled = true;
-    const imgs = FLOOR_VARIANT_KEYS.map((k) => this.scene.textures.get(k).getSourceImage() as CanvasImageSource);
+    const imgs = srcKeys.map((k) => this.scene.textures.get(k).getSourceImage() as CanvasImageSource);
     for (let cy = 0; cy < N; cy++) {
       for (let cx = 0; cx < N; cx++) {
         const v = variantFor(cx, cy) % imgs.length;

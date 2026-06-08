@@ -73,6 +73,10 @@ stand-in works) · ☐ missing (drop zone empty).
 | `neon_street_tile_c.webp` (512×512) | Neon Street floor variant C (yellow chevrons, drainage gutter) | ✓ ready | ✓ wired (variant atlas) |
 | `neon_street_tile_d.webp` (512×512) | Neon Street floor variant D (crosswalk stripes, pins, puddles) | ✓ ready | ✓ wired (variant atlas) |
 | `neonstreet_floor_tile.webp` (1254×1254) | (older single neon-street tile) | ✓ stored | superseded by the A–D variant set above |
+| `floor_street_a.png` (512×512) | Outdoor street A: crosswalk, magenta puddle, orange lane | ✓ ready | ✓ **active** (supersedes neon_street as the variant-atlas source) |
+| `floor_street_b.png` (512×512) | Outdoor street B: manhole, cyan puddle, confetti | ✓ ready | ✓ **active** |
+| `floor_street_c.png` (512×512) | Outdoor street C: manhole, faded crosswalk, purple puddle | ✓ ready | ✓ **active** |
+| `floor_street_d.png` (512×512) | Outdoor street D: yellow center line, pink/cyan puddles, litter | ✓ ready | ✓ **active** |
 | `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
 
 > **Neon Street multi-tile floor:** when `RENDER.floorTexture` **and** `RENDER.floorTileVariants`
@@ -103,9 +107,9 @@ in with no layout change.
 
 Placement (`systems/streetProps.ts`): TALL props line the FAR storefront edge (y-sorted),
 SHORT props occlude on the NEAR edge (`foregroundOccluderAlpha`), and lanterns hang
-OVERHEAD (fixed high depth, not y-sorted). All are wired but **awaiting binaries** — the
-art was delivered as inline previews, which Claude Code can't write to disk; each PNG must
-be committed to the repo, then added to `art-manifest.json` (placeholder shows until both).
+OVERHEAD (fixed high depth, not y-sorted). **All present + wired + in the manifest** (the
+art was uploaded to `main`; pulled onto this branch). Procedural placeholders remain as the
+automatic fallback for any future missing file.
 
 | File | Use | Sheet spec → anim(s) | Edge |
 |---|---|---|---|
@@ -126,8 +130,9 @@ be committed to the repo, then added to `art-manifest.json` (placeholder shows u
 
 > **Facade back wall** (`systems/facadeWall.ts`): the 4 front-view facades tile a continuous,
 > pooled storefront wall along each street seam — world-space (zooms + scrolls 1:1 with the
-> camera), depth-banded BEHIND entities/props and IN FRONT of the parallax. Until the PNGs
-> land, 4 procedural placeholder facades stand in.
+> camera), depth-banded BEHIND entities/props and IN FRONT of the parallax. **Present + active.**
+> NOTE: the facade PNGs currently have a baked Ⓐ/Ⓑ/Ⓒ/Ⓓ identifier letter in the top-left
+> corner (from the art export) that shows in-game — re-export without it for clean storefronts.
 
 > To activate any prop: commit the PNG to `public/sprites/props/<file>` and add its path to
 > `public/art-manifest.json`. The loader (`ui/props.ts`) slices it (spritesheets) + registers
