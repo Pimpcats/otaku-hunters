@@ -40,6 +40,17 @@ const HP_BAR_W = 46;
 
 type Sprite = Phaser.Physics.Arcade.Sprite;
 
+/** Lerp between two 0xRRGGBB ints (for the Lurker's escalating enrage tint). */
+function lerpColor(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  return (
+    (Math.round(ar + (br - ar) * t) << 16) |
+    (Math.round(ag + (bg - ag) * t) << 8) |
+    Math.round(ab + (bb - ab) * t)
+  );
+}
+
 export interface LevelUpResult {
   grade: Grade;
   heal: number;
@@ -65,6 +76,7 @@ export class RunScene extends Phaser.Scene {
   private shadows!: ShadowLayer;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
+  private tetherGfx!: Phaser.GameObjects.Graphics; // Glomper latch tether (redrawn each frame)
 
   private dir = new Phaser.Math.Vector2();
   private facing: FacingDir = 'down';
@@ -184,6 +196,9 @@ export class RunScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.wordTokens, this.onCollectWord, undefined, this);
     this.physics.add.overlap(this.player, this.gacha, this.onCollectGacha, undefined, this);
 
+    // Glomper latch tethers — one shared additive graphics, redrawn each frame.
+    this.tetherGfx = this.add.graphics().setDepth(DEPTH.vfx - 1).setBlendMode(Phaser.BlendModes.ADD);
+
     // Floating HP bar above the player (world-space).
     this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(DEPTH.hpBar);
     this.hpBarFill = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hp).setOrigin(0, 0.5).setDepth(DEPTH.hpBar + 1);
@@ -238,6 +253,12 @@ export class RunScene extends Phaser.Scene {
     e.setFlipX(false);
     e.setDepth(40);
     e.clearTint();
+    e.setAlpha(1);
+    e.anims.timeScale = 1;
+    this.clearEnemyVfx(e); // drop a recycled enemy's leftover glow/alpha
+    e.setData('wasLatched', false);
+    e.setData('tellNext', 0);
+    e.setData('hitUntil', 0);
     e.setData('speed', Math.round(st.speed * curse));
     e.setData('tint', undefined);
     e.setData('face', 'down');
@@ -297,6 +318,7 @@ export class RunScene extends Phaser.Scene {
     }
     ed.hp -= amount;
     e.setTintFill(0xffffff);
+    e.setData('hitUntil', this.time.now + 40); // ambient-tint vfx defers to the hit flash
     this.time.delayedCall(40, () => {
       if (!e.active) return;
       const tc = e.getData('tint') as number | undefined;
@@ -313,6 +335,7 @@ export class RunScene extends Phaser.Scene {
   /** Brief blue spark when a hit is shrugged off (Too-Cool tell) — no damage. */
   private deflect(e: Sprite) {
     e.setTint(0x9af6ff);
+    e.setData('hitUntil', this.time.now + 70);
     this.time.delayedCall(70, () => {
       if (!e.active) return;
       const tc = e.getData('tint') as number | undefined;
@@ -321,13 +344,143 @@ export class RunScene extends Phaser.Scene {
     });
   }
 
-  /** Localized white pop where a Camera Gremlin flashes (cheap, fades fast). */
+  /** Camera Gremlin's blinding shutter flash: a bright white disc (~200px) that briefly
+   *  obscures the play area where it stands, fading over ~300ms, + a camera-shutter SFX
+   *  if one is available. */
   private cameraFlash(x: number, y: number) {
     const c = this.add
-      .circle(x, y, 26, 0xffffff, 0.5)
+      .circle(x, y, 40, 0xffffff, 0.9)
       .setDepth(DEPTH.vfx)
       .setBlendMode(Phaser.BlendModes.ADD);
-    this.tweens.add({ targets: c, scale: 3, alpha: 0, duration: 320, ease: 'Cubic.out', onComplete: () => c.destroy() });
+    this.tweens.add({ targets: c, scale: 5, alpha: 0, duration: 300, ease: 'Cubic.out', onComplete: () => c.destroy() });
+    // A quick lens "pop" halo for the shutter read.
+    const ring = this.add.circle(x, y, 30, 0x9fe8ff, 0.7).setDepth(DEPTH.vfx).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 360, ease: 'Quad.out', onComplete: () => ring.destroy() });
+    if (this.sound && this.cache.audio.exists('sfx_shutter')) this.sound.play('sfx_shutter', { volume: 0.5 });
+  }
+
+  // ── per-archetype visual tells ─────────────────────────────────────────────
+  /** Set an ambient (non-flash) tint via the 'tint' data channel so the brief hit
+   *  flash still wins while it's showing, then restores to this colour. */
+  private applyAmbientTint(e: Sprite, tint?: number) {
+    e.setData('tint', tint);
+    if (this.time.now < ((e.getData('hitUntil') as number) ?? 0)) return; // defer to the hit flash
+    if (tint === undefined) e.clearTint();
+    else e.setTint(tint);
+  }
+
+  /** Drive each archetype's readable visual tell from its AI state. */
+  private enemyVfx(e: Sprite, ed: EnemyData, arc: EnemyData['archetype'], vmag: number) {
+    switch (arc.key) {
+      case 'AnxiousOne': // panic-blue + sweat drops while fleeing
+        if (ed.state === 'flee') {
+          this.applyAmbientTint(e, 0x7fb0ff);
+          this.spawnTell(e, 'sweat', 200);
+        } else this.applyAmbientTint(e, undefined);
+        break;
+      case 'TooCool': // bright white + alpha pulse + sunglasses glint while untargetable
+        if (ed.invuln) {
+          const pulse = 0.5 + 0.5 * Math.sin(this.time.now * 0.03);
+          this.applyAmbientTint(e, 0xffffff);
+          e.setAlpha(0.55 + 0.45 * pulse);
+          this.spawnTell(e, 'glint', 130);
+        } else if (e.alpha !== 1 || e.getData('tint') !== undefined) {
+          this.applyAmbientTint(e, undefined);
+          e.setAlpha(1);
+        }
+        break;
+      case 'IdolWota': // cyan/magenta glowstick trail tracing the weave
+        if (vmag > 4) this.spawnTell(e, 'glow', 70);
+        break;
+      case 'Lurker': { // escalates redder + a pulsing enrage glow as it powers up
+        const frac = Phaser.Math.Clamp((ed.buff ?? 0) / Math.max(0.001, BEHAVIOR.lurker.buffMax - 1), 0, 1);
+        this.applyAmbientTint(e, frac > 0.03 ? lerpColor(0xffffff, 0xff2a18, frac) : undefined);
+        this.syncLurkerGlow(e, frac);
+        break;
+      }
+      case 'Glomper': { // a glowing tether to the player while latched + a contact jolt
+        const was = (e.getData('wasLatched') as boolean) ?? false;
+        if (ed.latched) {
+          this.drawTether(e);
+          if (!was) this.cameras.main.shake(110, 0.006);
+        }
+        e.setData('wasLatched', ed.latched ?? false);
+        break;
+      }
+    }
+  }
+
+  /** Throttled little particle tell (sweat / glint / glowstick) above an enemy. */
+  private spawnTell(e: Sprite, kind: 'sweat' | 'glint' | 'glow', everyMs: number) {
+    const now = this.time.now;
+    if (now < ((e.getData('tellNext') as number) ?? 0)) return;
+    e.setData('tellNext', now + everyMs);
+    const top = e.y - e.displayHeight * 0.5;
+    if (kind === 'sweat') {
+      const d = this.add
+        .circle(e.x + Phaser.Math.Between(-6, 6), top + 2, 2.5, 0xbfe6ff, 0.9)
+        .setDepth(baselineY(e) + 1)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: d, y: d.y + 13, alpha: 0, duration: 430, onComplete: () => d.destroy() });
+    } else if (kind === 'glint') {
+      const s = this.add
+        .star(e.x + e.displayWidth * 0.16, e.y - e.displayHeight * 0.55, 4, 1.5, 5, 0xffffff)
+        .setDepth(baselineY(e) + 2)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: s, scale: { from: 0.3, to: 1.2 }, alpha: { from: 1, to: 0 }, angle: 90, duration: 260, onComplete: () => s.destroy() });
+    } else {
+      const tog = !(e.getData('gsTog') as boolean);
+      e.setData('gsTog', tog);
+      const dot = this.add
+        .circle(e.x, e.y - e.displayHeight * 0.4, 3, tog ? 0x00eaff : 0xff37c0, 0.9)
+        .setDepth(baselineY(e) - 1)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: dot, alpha: 0, scale: 0.3, duration: 520, onComplete: () => dot.destroy() });
+    }
+  }
+
+  /** Lurker enrage glow — a pulsing red halo that grows with the buff. */
+  private syncLurkerGlow(e: Sprite, frac: number) {
+    let glow = e.getData('glow') as Phaser.GameObjects.Arc | undefined;
+    if (frac <= 0.03) {
+      if (glow) { glow.destroy(); e.setData('glow', undefined); }
+      return;
+    }
+    if (!glow) {
+      glow = this.add.circle(e.x, e.y, 10, 0xff3010, 0.5).setBlendMode(Phaser.BlendModes.ADD);
+      e.setData('glow', glow);
+    }
+    const pulse = 0.5 + 0.5 * Math.sin(this.time.now * 0.008);
+    glow.setPosition(e.x, e.y - e.displayHeight * 0.32);
+    glow.setRadius(e.displayWidth * (0.45 + 0.3 * frac) * (0.92 + 0.12 * pulse));
+    glow.setAlpha((0.3 + 0.4 * frac) * (0.7 + 0.3 * pulse));
+    glow.setDepth(baselineY(e) - 1);
+  }
+
+  /** Glowing magenta tether (with a little chain of beads) from a latched Glomper to
+   *  the player, drawn onto the shared additive tether graphics. */
+  private drawTether(e: Sprite) {
+    const x1 = e.x;
+    const y1 = e.y - e.displayHeight * 0.3;
+    const x2 = this.player.x;
+    const y2 = this.player.y - 8;
+    const g = this.tetherGfx;
+    g.lineStyle(7, 0xc06bff, 0.12);
+    g.lineBetween(x1, y1, x2, y2);
+    g.lineStyle(3, 0xff37c0, 0.55);
+    g.lineBetween(x1, y1, x2, y2);
+    for (let i = 1; i < 6; i++) {
+      const t = i / 6;
+      g.fillStyle(0xffd6ff, 0.85);
+      g.fillCircle(Phaser.Math.Linear(x1, x2, t), Phaser.Math.Linear(y1, y2, t), 2);
+    }
+  }
+
+  /** Drop any per-enemy vfx objects (called when a pooled enemy goes inactive/respawns). */
+  private clearEnemyVfx(e: Sprite) {
+    const glow = e.getData('glow') as Phaser.GameObjects.Arc | undefined;
+    if (glow) { glow.destroy(); e.setData('glow', undefined); }
+    if (e.alpha !== 1) e.setAlpha(1);
   }
 
   private killEnemy(e: Sprite, ed: EnemyData) {
@@ -340,6 +493,7 @@ export class RunScene extends Phaser.Scene {
       this.runClear();
       return;
     }
+    this.clearEnemyVfx(e); // tidy any glow/tether-state before the sprite is pooled
     this.burst(x, y, ed.archetype.color);
     this.dropGem(x, y, ed.xp);
     // Star Luck (運 luck): better odds a kill coughs up a word token.
@@ -714,10 +868,12 @@ export class RunScene extends Phaser.Scene {
 
     // enemy AI + facing (from their resulting velocity)
     let slow = 1; // Glomper latch debuff, recomputed each frame
+    this.tetherGfx.clear(); // redrawn per latched Glomper below
     for (const obj of this.enemies.getChildren()) {
       const e = obj as Sprite;
       if (!e.active) {
         this.shadows.hide(e); // recycled out of the pool — drop its planted shadow
+        this.clearEnemyVfx(e); // drop any per-enemy vfx (e.g. Lurker glow)
         continue;
       }
       const ed = e.getData('edata') as EnemyData;
@@ -726,14 +882,24 @@ export class RunScene extends Phaser.Scene {
       if (ed.latched) slow = Math.min(slow, BEHAVIOR.glomper.slow);
       if (ed.flash) { ed.flash = false; this.cameraFlash(e.x, e.y); }
       const body = e.body as Phaser.Physics.Arcade.Body;
+      const vmag = Math.hypot(body.velocity.x, body.velocity.y);
+      const moving = vmag > 4;
       const face = vectorToDir8(body.velocity.x, body.velocity.y, (e.getData('face') as FacingDir) ?? 'down');
       e.setData('face', face);
       // Too-Cool walks backwards: mirror the facing vertically so moving toward you shows his back.
       const shown = arc.reverseFacing ? reverseDir(face) : face;
-      applyFacing(e, arc.texture, shown, 'walk');
+      // Walk while moving, idle (static facing frame) when stopped (e.g. Camera Gremlin
+      // holding at range). applyFacing falls back to the static art for the 'idle' state.
+      applyFacing(e, arc.texture, shown, moving ? 'walk' : 'idle');
+      // Animation speed scales with movement speed (faster enemy = faster cycle); the
+      // Anxious One's flee is a visible panic-sprint.
+      let ts = Phaser.Math.Clamp(vmag / 70, 0.6, 2.4);
+      if (arc.key === 'AnxiousOne' && ed.state === 'flee') ts *= 1.5;
+      e.anims.timeScale = ts;
       // Enemies live in a physics Group (not on the scene UpdateList), so their
       // preUpdate never runs — advance walk animations manually each frame.
       e.anims.update(time, delta);
+      this.enemyVfx(e, ed, arc, vmag); // per-archetype tells (tint/particles/tether/glow)
       if (RENDER.ySort) e.setDepth(baselineY(e));
       this.shadows.sync(e);
     }
