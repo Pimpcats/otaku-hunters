@@ -229,13 +229,8 @@ export class RunScene extends Phaser.Scene {
     });
   }
 
-  /** Asset-by-asset street build (public/assets pipeline). Flat neon ground tile filling
-   *  the world (scrolls with the camera, the tile carries the diagonal curb/sidewalk), plus
-   *  buildings placed LOGICALLY: base on the sidewalk concrete, set back behind the curb.
-   *
-   *  ground_neon_v3 geometry (measured): the curb runs diagonally at tileY = CURB_M·tileX +
-   *  CURB_B; the concrete SIDEWALK is the band ABOVE it (smaller tileY), the road below. A
-   *  building's feet go on the sidewalk, SIDEWALK_SETBACK world-px north of (behind) the curb. */
+  /** Asset-by-asset street build (public/assets pipeline): the east–west ground band plus
+   *  the north-wall buildings laid out along the 16° isometric wall line. */
   private buildStreet() {
     if (this.textures.exists('ground_neon')) {
       // The street runs EAST–WEST: tile the ground only along X (its length), as a single
@@ -246,30 +241,25 @@ export class RunScene extends Phaser.Scene {
         .setOrigin(0, 0)
         .setDepth(-100000);
     }
-    if (this.textures.exists('anime_shop')) {
-      const shopX = WORLD / 2;
-      const baseY = this.sidewalkBaseY(shopX); // feet on the concrete behind the curb
-      const shop = this.add.image(shopX, baseY, 'anime_shop').setOrigin(0.5, 1).setScale(0.28);
-      shop.setDepth(baseY); // base-y depth-sort: sprites further south (larger y) overlap it
+    // North-wall buildings, exact composed layout along the 16° iso wall line
+    // wallY(x) = BASE_Y − x·tan(16°). Screen-space (scrollFactor 0) at the given pixels so
+    // the layout is 1:1 at zoom 1.0; origin bottom-center, scale 0.4; depth = base y so the
+    // FRONT (lower-left) buildings overlap the ones receding up-right behind them.
+    const WALL: { key: string; x: number; y: number }[] = [
+      { key: 'anime_shop', x: 200, y: 350 },
+      { key: 'utility_wall', x: 310, y: 318 },
+      { key: 'game_center', x: 420, y: 316 },
+      { key: 'poster_wall', x: 530, y: 284 },
+      { key: 'karaoke', x: 640, y: 252 },
+    ];
+    for (const b of WALL) {
+      if (!this.textures.exists(b.key)) continue;
+      this.add.image(b.x, b.y, b.key).setOrigin(0.5, 1).setScale(0.4).setScrollFactor(0).setDepth(b.y);
     }
   }
 
-  // ground_neon_v3 measured tile geometry (curb diagonal, in tile pixels).
-  private static readonly TILE_W = 1774;
-  private static readonly TILE_H = 887;
-  private static readonly CURB_M = -0.068; // curb tileY slope across tileX
-  private static readonly CURB_B = 384.7; // curb tileY intercept
-  private static readonly SIDEWALK_SETBACK = 240; // world-px a building's feet sit north of (behind) the curb
-  private static readonly STREET_TOP_Y = 1774; // world Y of the single street band's top edge (tileY 0)
-
-  /** World Y at which a building's feet sit to land on the sidewalk concrete at world X `x`:
-   *  the curb on the fixed street band, stepped back north onto the concrete. */
-  private sidewalkBaseY(x: number): number {
-    const { TILE_W, CURB_M, CURB_B, SIDEWALK_SETBACK, STREET_TOP_Y } = RunScene;
-    const tileX = ((x % TILE_W) + TILE_W) % TILE_W;
-    const curbWorldY = STREET_TOP_Y + (CURB_M * tileX + CURB_B); // curb's Y on the band at this X
-    return curbWorldY - SIDEWALK_SETBACK; // step back north onto the concrete
-  }
+  private static readonly TILE_H = 887; // ground_neon tile height (one street cross-section)
+  private static readonly STREET_TOP_Y = 1774; // world Y of the single street band's top edge
 
   private openPause() {
     if (this.dead || this.won || this.leveling || this.revealing) return;
