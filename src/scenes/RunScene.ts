@@ -247,15 +247,57 @@ export class RunScene extends Phaser.Scene {
         .setOrigin(0, 0)
         .setDepth(-100000);
     }
-    // Starting north-wall layout (edit live with E, then P to export new coords).
-    const START: { key: string; x: number; y: number; angle?: number }[] = [
-      { key: 'anime_shop', x: 200, y: 350 },
-      { key: 'utility_wall', x: 310, y: 318 },
-      { key: 'game_center', x: 420, y: 316 },
-      { key: 'poster_wall', x: 530, y: 284 },
-      { key: 'karaoke', x: 640, y: 252 },
-    ];
-    for (const b of START) this.addBuilding(b.key, b.x, b.y, b.angle);
+    // Starting north-wall: buildings normalized to a uniform on-screen height (type scale
+    // 0.4/0.2) and packed EDGE-TO-EDGE (measured opaque widths, slight overlap so no seam)
+    // along the 16° wall line wallY(x) = BASE_Y − x·tan16. Fine-tune live with E, export with P.
+    const ORDER = ['anime_shop', 'utility_wall', 'game_center', 'poster_wall', 'karaoke'];
+    const TAN16 = Math.tan((16 * Math.PI) / 180);
+    const BASE_Y = 350 + 200 * TAN16; // anchor: wallY(200) = 350
+    const OVERLAP = 6;
+    let prevRight = Number.NEGATIVE_INFINITY;
+    for (const key of ORDER) {
+      if (!this.textures.exists(key)) continue;
+      const scale = buildingScale(key);
+      const bb = this.opaqueBBox(key);
+      const canvasCx = bb.cw / 2;
+      const leftExt = (canvasCx - bb.l) * scale;
+      const rightExt = (bb.r - canvasCx) * scale;
+      const bottomPad = (bb.ch - bb.b) * scale; // drop the art's feet onto the line
+      const cx = prevRight === Number.NEGATIVE_INFINITY ? 200 : prevRight + leftExt - OVERLAP;
+      const lineY = BASE_Y - cx * TAN16;
+      this.addBuilding(key, Math.round(cx), Math.round(lineY + bottomPad));
+      prevRight = cx + rightExt;
+    }
+  }
+
+  /** Opaque bounding box of a texture (source px) — alpha-scanned so widths are the VISIBLE
+   *  art, not the padded canvas, for true edge-to-edge packing. */
+  private opaqueBBox(key: string): { l: number; r: number; b: number; cw: number; ch: number } {
+    const src = this.textures.get(key).getSourceImage() as CanvasImageSource & { width: number; height: number };
+    const cw = src.width;
+    const ch = src.height;
+    const scratch = this.textures.createCanvas('_bbox_scratch', cw, ch);
+    if (!scratch) return { l: 0, r: cw - 1, b: ch - 1, cw, ch };
+    const ctx = scratch.getContext();
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(src, 0, 0);
+    const data = ctx.getImageData(0, 0, cw, ch).data;
+    let l = cw;
+    let r = 0;
+    let b = 0;
+    let any = false;
+    for (let y = 0; y < ch; y += 3) {
+      for (let x = 0; x < cw; x += 3) {
+        if (data[(y * cw + x) * 4 + 3] > 20) {
+          any = true;
+          if (x < l) l = x;
+          if (x > r) r = x;
+          if (y > b) b = y;
+        }
+      }
+    }
+    this.textures.remove('_bbox_scratch');
+    return any ? { l, r, b, cw, ch } : { l: 0, r: cw - 1, b: ch - 1, cw, ch };
   }
 
   /** Add one screen-space building (origin bottom-center, type-scaled, base-y depth-sorted)
