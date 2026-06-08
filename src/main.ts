@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './constants';
 import { BootScene } from './scenes/BootScene';
 import { MetaScene } from './scenes/MetaScene';
+import { BackgroundScene } from './scenes/BackgroundScene';
 import { RunScene } from './scenes/RunScene';
+import { HudScene } from './scenes/HudScene';
 import { LevelUpScene } from './scenes/LevelUpScene';
 import { PauseScene } from './scenes/PauseScene';
 
@@ -25,7 +27,9 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, MetaScene, RunScene, LevelUpScene, PauseScene],
+  // Order == render order. Background sits behind Run (it shows through Run's
+  // transparent sky band); Hud sits in front; LevelUp/Pause are modals on top of all.
+  scene: [BootScene, MetaScene, BackgroundScene, RunScene, HudScene, LevelUpScene, PauseScene],
 };
 
 // eslint-disable-next-line no-new

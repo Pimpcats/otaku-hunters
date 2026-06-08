@@ -90,6 +90,25 @@ stand-in works) · ☐ missing (drop zone empty).
 | `arcade_near.webp` (1920×1024) | near arcade street | ✓ ready | ✓ **active** (front; fills the band) |
 
 > Toggle `RENDER.useParallaxArt = false` to A/B against the all-procedural look.
+> The parallax skyline now renders on a separate **BackgroundScene** (un-zoomed) behind
+> the zoomed gameplay so it never pixelates — it reads as the distant skyline peeking
+> over the world-space street props.
+
+## Street props — `public/sprites/props/` (world-space corridor dressing)
+World-space neon props (`systems/streetProps.ts`) line repeating street corridors so the
+player runs THROUGH a neighbourhood. Manifest-gated like the walk sheets; absent files
+fall back to procedural neon-rectangle placeholders, so the spatial layout is tunable now
+(`RENDER.streetWidth / propDensity / propScale / foregroundOccluderAlpha`) and art swaps
+in with no layout change.
+
+| File | Use | Sheet spec | Status | Wired |
+|---|---|---|---|---|
+| `vending_machine.png` | 自販機 neon vending machine (animated idle: neon trim cycles, can drops) | 2048×768, 4 frames in a row (512×768 each) → `prop_vending_idle` @3fps, scaled ~76px tall | ☐ **awaiting binary** (art delivered but the PNG must be committed to the repo) | ✓ loader + anim wired (`ui/props.ts`); placeholder shows until the file + its manifest line land |
+
+> To activate the vending machine: commit the PNG to `public/sprites/props/vending_machine.png`
+> and add `"sprites/props/vending_machine.png"` to `public/art-manifest.json`. The loader
+> slices it (512×768), registers `prop_vending_idle`, and `StreetProps` uses the animated
+> sprite instead of the placeholder automatically.
 
 ## UI — `public/ui/` (transparent) — all **wire-on-request** (HUD is procedural today)
 | Folder | Files | Spec | Status |

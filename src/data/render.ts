@@ -83,6 +83,23 @@ export const ACTIVE_LOOK: keyof typeof LOOKS = 'neon';
 const L = LOOKS[ACTIVE_LOOK];
 
 export const RENDER = {
+  // ── Camera ───────────────────────────────────────────────────────────────────
+  // How far the gameplay camera zooms IN on the action. 1 = the old "watch from the
+  // sky" framing; ~1.8 puts the player at street level. The world (floor, props,
+  // entities) zooms together; the HUD and the distant parallax skyline are rendered
+  // on separate non-zoom cameras so they stay screen-scale (no pixelation).
+  cameraZoom: 1.8,
+
+  // ── Street-corridor props (systems/streetProps.ts) ───────────────────────────
+  // World-space neon-street dressing placed along the top (far) + bottom (near) edges
+  // of a corridor `streetWidth` wide, so the player runs THROUGH a neighbourhood, not
+  // an empty arena. Props are y-sorted (pass in front of/behind the player); near-edge
+  // ones are semi-transparent foreground occluders. Procedural placeholders for now.
+  streetWidth: 600, // world px of clear play corridor between the two prop edges
+  propDensity: 0.3, // 0..1 chance a candidate slot along an edge actually spawns a prop
+  propScale: [0.8, 1.2] as number[], // random per-prop scale range (variety)
+  foregroundOccluderAlpha: 0.7, // see-through-ness of near-edge foreground props
+
   // ── Layer 1: Y-sort ────────────────────────────────────────────────────────
   ySort: true, // sort ground-occupiers by baseline y so lower-on-screen draws in front
 

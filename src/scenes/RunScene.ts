@@ -19,7 +19,6 @@ import {
 import { InputController } from '../systems/input';
 import { WeaponManager } from '../systems/weapons';
 import { Spawner } from '../systems/spawner';
-import { Hud } from '../ui/hud';
 import { ARCHETYPES, type EnemyData } from '../entities/enemies/archetypes';
 import { PlayerLoadout } from '../systems/loadout';
 import { speak, stopAudio, setActiveVoice } from '../audio/tts';
@@ -31,6 +30,8 @@ import { RENDER, DEPTH, baselineY } from '../data/render';
 import { ShadowLayer } from '../systems/shadows';
 import { Backdrop } from '../systems/backdrop';
 import { Atmosphere } from '../ui/atmosphere';
+import { StreetProps } from '../systems/streetProps';
+import type { HudScene } from './HudScene';
 import { readingOf } from '../systems/romaji';
 
 const WORLD = 4000;
@@ -59,8 +60,8 @@ export class RunScene extends Phaser.Scene {
   private weapon!: WeaponManager;
   private spawner!: Spawner;
   private controls!: InputController;
-  private hud!: Hud;
   private ground!: Backdrop;
+  private props!: StreetProps;
   private shadows!: ShadowLayer;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
@@ -133,17 +134,31 @@ export class RunScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, WORLD, WORLD);
     this.cameras.main.setBounds(0, 0, WORLD, WORLD);
-    // Layers 3+4: the tilted ground plane + parallax (screen-space, behind everything).
-    this.ground = new Backdrop(this);
+
+    // Sibling scenes: the distant skyline (behind, un-zoomed) and the HUD (in front,
+    // un-zoomed). Launched in parallel so the gameplay camera can zoom the world while
+    // they stay screen-scale. Stopped again in this scene's SHUTDOWN handler.
+    this.scene.launch('Background');
+    this.scene.launch('Hud');
+
+    // Layer 3: the tilted FLOOR plane only (the sky/parallax half lives on Background).
+    this.ground = new Backdrop(this, { layer: 'floor' });
+    // World-space street-corridor props (storefronts/signs/vending + foreground occluders).
+    this.props = new StreetProps(this, WORLD, WORLD);
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
     this.player.setCollideWorldBounds(true);
     this.player.setVisible(false); // the body is invisible; the rig below is the art
+    this.cameras.main.setZoom(RENDER.cameraZoom); // street-level framing (DIAGNOSTIC pass)
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     // As tilt rises, drop the player lower on screen so the floor (and the 360°
-    // swarm) stays framed above them.
-    this.cameras.main.setFollowOffset(0, RENDER.cameraHeightBias * this.cameras.main.height * RENDER.groundTilt);
+    // swarm) stays framed above them. Divide by zoom: the offset is in world px, and
+    // the camera renders it ×zoom, so /zoom keeps the on-screen shift constant.
+    this.cameras.main.setFollowOffset(
+      0,
+      (RENDER.cameraHeightBias * this.cameras.main.height * RENDER.groundTilt) / RENDER.cameraZoom,
+    );
 
     // Visible sprite decoupled from the physics body so the walk-bob (a vertical
     // hop) never disturbs the hitbox or camera — the rig just tracks the body.
@@ -162,7 +177,6 @@ export class RunScene extends Phaser.Scene {
     this.weapon = new WeaponManager(this, this.loadout);
     this.spawner = new Spawner((key, x, y) => this.spawnEnemy(key, x, y));
     this.controls = new InputController(this);
-    this.hud = new Hud(this);
 
     this.physics.add.overlap(this.weapon.bullets, this.enemies, this.onBulletHit, undefined, this);
     this.physics.add.overlap(this.player, this.enemies, this.onPlayerHit, undefined, this);
@@ -174,15 +188,21 @@ export class RunScene extends Phaser.Scene {
     this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(DEPTH.hpBar);
     this.hpBarFill = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hp).setOrigin(0, 0.5).setDepth(DEPTH.hpBar + 1);
 
-    // Layer 5: vignette + poppy grade (static screen-space overlays, below the HUD).
-    new Atmosphere(this);
+    // Layer 5: the neon bloom/saturate post-FX on THIS (zoomed) camera so the world
+    // glows; the screen-space vignette/grade overlay lives on the HUD scene.
+    new Atmosphere(this, { glow: true, overlay: false });
 
     // Pause on ESC or Space.
     this.input.keyboard?.on('keydown-ESC', this.openPause, this);
     this.input.keyboard?.on('keydown-SPACE', this.openPause, this);
 
-    // Stop any voice clip when the run ends / transitions away.
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopAudio);
+    // Tear down the sibling scenes + stop any voice clip when the run ends.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      stopAudio();
+      this.props.destroy();
+      this.scene.stop('Background');
+      this.scene.stop('Hud');
+    });
   }
 
   private openPause() {
@@ -756,7 +776,7 @@ export class RunScene extends Phaser.Scene {
     }
     this.spawner.update(delta, this.elapsed, this.player.x, this.player.y, this.countActive(this.enemies));
 
-    this.hud.update({
+    (this.scene.get('Hud') as HudScene | undefined)?.hud?.update({
       level: this.level,
       xp: this.xp,
       xpToNext: this.xpToNext,

@@ -43,10 +43,14 @@ const PERSP = 5; // perspective compression strength at tilt = 1
 const COLS = 18; // mesh columns across the screen
 // Horizontal tile-compression cap lives in RENDER.maxSpread (tunable).
 
+export type BackdropLayer = 'floor' | 'sky' | 'both';
+
 export class Backdrop {
+  private mode: BackdropLayer;
+  private src: Phaser.Scene; // the gameplay scene whose camera scroll drives the parallax/floor
   private g: Phaser.GameObjects.Graphics;
-  private parallax: Phaser.GameObjects.Graphics;
-  private gridGfx: Phaser.GameObjects.Graphics; // neon grid, drawn ADDITIVE so lines glow
+  private parallax?: Phaser.GameObjects.Graphics; // sky/both only
+  private gridGfx?: Phaser.GameObjects.Graphics; // floor/both only — neon grid, ADDITIVE so lines glow
 
   // Textured-floor mesh (only when RENDER.floorTexture and the texture loaded).
   private floor?: Phaser.GameObjects.Mesh;
@@ -61,21 +65,38 @@ export class Backdrop {
   // undefined fall back to the procedural silhouettes — so far/mid/near can mix.
   private skyline: ({ s: Phaser.GameObjects.TileSprite; texH: number } | undefined)[] = [];
 
-  constructor(private scene: Phaser.Scene) {
+  // The backdrop renders in two halves that can live on DIFFERENT scenes/cameras so
+  // the gameplay camera can zoom the floor (locked to the entities standing on it)
+  // while the distant skyline stays at screen scale (no bitmap pixelation):
+  //   • 'floor' — floor gradient + neon grid / textured street mesh (RunScene, zoomed)
+  //   • 'sky'   — sky gradient band + parallax skyline (BackgroundScene, un-zoomed)
+  //   • 'both'  — everything on one camera (the original single-camera behaviour)
+  // `source` is the gameplay scene whose camera scroll drives parallax/floor scrolling
+  // (defaults to `scene`; pass RunScene when the sky lives on a separate BackgroundScene).
+  constructor(
+    private scene: Phaser.Scene,
+    opts: { layer?: BackdropLayer; source?: Phaser.Scene } = {},
+  ) {
+    this.mode = opts.layer ?? 'both';
+    this.src = opts.source ?? scene;
     this.g = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.ground);
-    this.parallax = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.grid);
-    // The neon grid lives on its own ADDITIVE layer so the glow halos build up
-    // (and read as light, not paint) over the dark floor; the camera bloom post-FX
-    // then amplifies the bright cores into the TRON/Edgerunners glow.
-    this.gridGfx = scene.add
-      .graphics()
-      .setScrollFactor(0)
-      .setDepth(DEPTH.grid + 1)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    this.buildSkyline();
-    if (RENDER.floorTexture) {
-      this.maybeBuildVariantAtlas(); // composes FLOOR_TEXTURE_KEY from the 4 neon-street tiles when enabled
-      if (scene.textures.exists(FLOOR_TEXTURE_KEY)) this.buildFloorMesh();
+    if (this.mode !== 'floor') {
+      this.parallax = scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.grid);
+      this.buildSkyline();
+    }
+    if (this.mode !== 'sky') {
+      // The neon grid lives on its own ADDITIVE layer so the glow halos build up
+      // (and read as light, not paint) over the dark floor; the camera bloom post-FX
+      // then amplifies the bright cores into the TRON/Edgerunners glow.
+      this.gridGfx = scene.add
+        .graphics()
+        .setScrollFactor(0)
+        .setDepth(DEPTH.grid + 1)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      if (RENDER.floorTexture) {
+        this.maybeBuildVariantAtlas(); // composes FLOOR_TEXTURE_KEY from the 4 neon-street tiles when enabled
+        if (scene.textures.exists(FLOOR_TEXTURE_KEY)) this.buildFloorMesh();
+      }
     }
   }
 
@@ -178,7 +199,12 @@ export class Backdrop {
     const toModelY = (py: number) => 0.5 - py / H;
     for (let j = 0; j <= R; j++) {
       const y = this.rowY(this.rows[j], tilt, floorTop);
-      const fade = Phaser.Math.Clamp((y - floorTop) / (H - floorTop), 0, 1); // 1 near, 0 horizon
+      const fadeLin = Phaser.Math.Clamp((y - floorTop) / (H - floorTop), 0, 1); // 1 near, 0 horizon
+      // sqrt curve: keep the street surface near TRUE colour across the mid-field
+      // (so the wet-asphalt tiles read), only hazing to dark in the last stretch to
+      // the horizon — otherwise zoom pushes the true-colour near edge off-screen and
+      // the visible mid-field reads as a black void.
+      const fade = Math.sqrt(fadeLin);
       const col = lerpColor(RENDER.floorFar, RENDER.floorTextureTint, fade); // art shows true near, hazes to dark at horizon
       // Keep the floor opaque across most of its depth; only fade the tiles into
       // the gradient in the top band near the horizon (distance haze, and it hides
@@ -273,33 +299,35 @@ export class Backdrop {
   }
 
   update(): void {
-    const cam = this.scene.cameras.main;
+    // Scroll is driven by the GAMEPLAY camera (this.src) even when the sky is drawn
+    // on a separate BackgroundScene, so the parallax/floor track the player.
+    const cam = this.src.cameras?.main;
+    if (!cam) return; // gameplay scene torn down (e.g. mid-shutdown) — nothing to track
     const camX = cam.scrollX;
     const camY = cam.scrollY;
     const tilt = Phaser.Math.Clamp(RENDER.groundTilt, 0, 1);
     const floorTop = floorTopY(); // wall/floor seam
     const cx = W / 2; // vanishing x
 
-    this.drawParallax(camX, camY, floorTop);
-
     const g = this.g;
     g.clear();
 
-    // ── Ground gradient: a back wall band above the seam, the floor below it ────
-    if (floorTop > 0) {
-      g.fillGradientStyle(RENDER.skyTop, RENDER.skyTop, RENDER.skyBottom, RENDER.skyBottom, 1);
-      g.fillRect(0, 0, W, floorTop);
-    }
-    g.fillGradientStyle(RENDER.floorFar, RENDER.floorFar, RENDER.floorNear, RENDER.floorNear, 1);
-    g.fillRect(0, floorTop, W, H - floorTop);
-
-    // Textured floor: just rescroll the mesh UVs and skip the wireframe.
-    if (this.floor) {
-      this.updateFloorMesh(camX, camY);
-      return;
+    // ── Sky half: back-wall gradient band + parallax skyline ───────────────────
+    if (this.mode !== 'floor') {
+      this.drawParallax(camX, camY, floorTop);
+      if (floorTop > 0) {
+        g.fillGradientStyle(RENDER.skyTop, RENDER.skyTop, RENDER.skyBottom, RENDER.skyBottom, 1);
+        g.fillRect(0, 0, W, floorTop);
+      }
     }
 
-    this.drawNeonGrid(camX, camY, tilt, floorTop, cx);
+    // ── Floor half: floor gradient + textured street mesh / neon grid ──────────
+    if (this.mode !== 'sky') {
+      g.fillGradientStyle(RENDER.floorFar, RENDER.floorFar, RENDER.floorNear, RENDER.floorNear, 1);
+      g.fillRect(0, floorTop, W, H - floorTop);
+      if (this.floor) this.updateFloorMesh(camX, camY); // textured floor: rescroll UVs, skip wireframe
+      else this.drawNeonGrid(camX, camY, tilt, floorTop, cx);
+    }
   }
 
   /** The neon TRON/Edgerunners floor: glowing cyan grid lines (magenta accents)
@@ -308,6 +336,7 @@ export class Backdrop {
    *  lines are thicker/brighter; everything fades and bunches toward the horizon. */
   private drawNeonGrid(camX: number, camY: number, tilt: number, floorTop: number, cx: number): void {
     const ng = this.gridGfx;
+    if (!ng) return;
     ng.clear();
     const grid = RENDER.gridSize;
     const scroll = RENDER.gridScroll;
@@ -375,6 +404,7 @@ export class Backdrop {
   /** Far → near horizontal bands behind the floor that drift slower than the camera. */
   private drawParallax(camX: number, camY: number, floorTop: number): void {
     const p = this.parallax;
+    if (!p) return;
     p.clear();
     if (!RENDER.parallax) {
       for (const layer of this.skyline) layer?.s.setVisible(false);

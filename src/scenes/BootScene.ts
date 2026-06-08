@@ -3,6 +3,7 @@ import { generatePlaceholderTextures } from '../ui/textures';
 import { bakePlayerSheets, loadPlayerSheets, registerPlayerAnims, loadHeroSheets, bakeHeroSheets } from '../ui/playerSheet';
 import { applyKenneyAssets, loadKenneyAssets } from '../ui/kenneyAssets';
 import { loadEnemyWalkSheets, bakeEnemyWalkSheets } from '../ui/enemyAnims';
+import { loadPropSheets, registerPropAnims } from '../ui/props';
 import { loadVoiceManifest, loadVoiceFor } from '../audio/tts';
 import { CHARACTERS } from '../data/characters';
 import { getContentIndex } from '../data/contentIndex';
@@ -24,6 +25,9 @@ export class BootScene extends Phaser.Scene {
     // Animated-enemy walk sheets (optional; manifest-gated). Must follow
     // loadKenneyAssets — it queues the art-manifest json these read to self-gate.
     loadEnemyWalkSheets(this);
+    // Optional world-space street prop sheets (e.g. the animated vending machine);
+    // manifest-gated like the walk sheets — absent files fall back to procedural props.
+    loadPropSheets(this);
     // Tiling floor texture for the 2.5D ground plane (placeholder; see CREDITS.md).
     // A Kenney floor.png (loaded above) overrides this in create(); if neither is
     // present the backdrop falls back to the wireframe grid.
@@ -48,6 +52,7 @@ export class BootScene extends Phaser.Scene {
     registerPlayerAnims(this);
     bakeHeroSheets(this); // slice the rect hero sheets over their facing keys (overrides procedural)
     bakeEnemyWalkSheets(this); // bake walk sheets → per-direction enemy walk anims (applyFacing uses them)
+    registerPropAnims(this); // register present prop sheets' idle anims (e.g. prop_vending_idle)
 
     // Build the content index once up front so a malformed lessons.js surfaces
     // in the console here rather than mid-run (guardrail §8.7: never blocks).
