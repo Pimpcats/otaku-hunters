@@ -76,10 +76,11 @@ stand-in works) · ☐ missing (drop zone empty).
 | `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
 
 > **Neon Street multi-tile floor:** when `RENDER.floorTexture` **and** `RENDER.floorTileVariants`
-> are both on, the floor mesh composes an N×N atlas (`floorVariantAtlas`, default 4×4) where
-> each cell deterministically picks one of the A–D tiles (seeded by cell position) — killing
-> the single-tile repeat. Defaults **OFF**: the Arcade stage keeps the procedural neon grid;
-> this turns on for the Neon Street stage (roadmap Phase 6). Tiles are clean/unlabelled.
+> are both on (now the case), the floor mesh composes an N×N atlas (`floorVariantAtlas`,
+> default 4×4) where each cell deterministically picks one of the A–D tiles (seeded by cell
+> position) — killing the single-tile repeat. **Now ACTIVE on the Arcade** (replaces the
+> procedural neon grid). Tiles haze to the dark floor palette toward the horizon (tunable via
+> `floorFar` / the mesh fade). Set both flags false to return to the procedural TRON grid.
 
 ## Parallax — `public/textures/parallax/` (wide, tileable, transparent)
 | File | Use | Status | Wired |
