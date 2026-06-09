@@ -29,6 +29,7 @@ export class BuildingEditor {
   private ring?: Phaser.GameObjects.Graphics;
   private ghost?: Phaser.GameObjects.Image; // tray-drag preview following the pointer
   private rotating?: { img: Phaser.GameObjects.Image; startAngle: number; startX: number };
+  private exportPanel?: HTMLDivElement; // on-screen copyable JSON export (no F12 needed)
 
   constructor(
     private scene: Phaser.Scene,
@@ -134,6 +135,7 @@ export class BuildingEditor {
     this.ghost?.destroy();
     this.ghost = undefined;
     this.rotating = undefined;
+    this.closeExportPanel();
     this.brushKey = null;
     this.selected = undefined;
   }
@@ -144,13 +146,26 @@ export class BuildingEditor {
     tray.add(this.scene.add.rectangle(0, H - TRAY_H, W, TRAY_H, 0x05030f, 0.92).setOrigin(0, 0));
     tray.add(
       this.scene.add
-        .text(8, H - TRAY_H + 2, 'EDITOR  ·  drag tile into world to place  ·  drag move  ·  right-drag rotate (or [ ])  ·  arrows nudge (⇧×10)  ·  Del remove  ·  P export  ·  E exit', {
+        .text(8, H - TRAY_H + 2, 'EDITOR  ·  drag tile into world  ·  drag move  ·  right-drag rotate (or [ ])  ·  arrows nudge (⇧×10)  ·  Del remove  ·  P / EXPORT → copy JSON  ·  E exit', {
           fontFamily: 'monospace',
           fontSize: '11px',
           color: '#8aa0c8',
         })
         .setOrigin(0, 0),
     );
+    // On-screen EXPORT button (top-right of the tray strip) — same as pressing P.
+    const btn = this.scene.add
+      .text(W - 8, H - TRAY_H + 2, ' EXPORT ', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        color: '#06121a',
+        backgroundColor: '#00eaff',
+      })
+      .setOrigin(1, 0)
+      .setPadding(6, 3, 6, 3)
+      .setInteractive({ useHandCursor: true });
+    btn.on('pointerdown', () => this.printJSON());
+    tray.add(btn);
     const present = ALL_BUILDINGS.filter((k) => this.scene.textures.exists(k));
     const step = W / present.length;
     present.forEach((key, i) => {
@@ -233,13 +248,65 @@ export class BuildingEditor {
       scale: Math.round(b.scaleX * 1000) / 1000,
       angle: Math.round(b.angle),
     }));
+    const json = JSON.stringify(arr, null, 2);
     // eslint-disable-next-line no-console
-    console.log('[BuildingEditor] positions:\n' + JSON.stringify(arr));
-    if (this.hud) {
-      const old = this.hud.text;
-      this.hud.setText(old + '\n→ printed ' + arr.length + ' to console (F12)');
-      this.scene.time.delayedCall(1500, () => this.refreshHud());
-    }
+    console.log('[BuildingEditor] positions:\n' + json); // also to console as a backup
+    this.showExportPanel(json, arr.length);
+  }
+
+  /** Pop an on-screen, copyable JSON panel over the canvas — no dev console needed. */
+  private showExportPanel(json: string, count: number) {
+    this.closeExportPanel();
+    const panel = document.createElement('div');
+    panel.style.cssText =
+      'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(2,3,12,0.72);font-family:monospace;';
+    const card = document.createElement('div');
+    card.style.cssText =
+      'width:min(640px,92vw);max-height:84vh;display:flex;flex-direction:column;gap:8px;padding:14px;' +
+      'background:#0a0a18;border:2px solid #00eaff;border-radius:8px;box-shadow:0 0 24px #00eaff66;';
+    const title = document.createElement('div');
+    title.textContent = `Building layout — ${count} placed`;
+    title.style.cssText = 'color:#9effa0;font-size:13px;';
+    const ta = document.createElement('textarea');
+    ta.value = json;
+    ta.readOnly = true;
+    ta.style.cssText =
+      'flex:1;min-height:240px;resize:vertical;background:#05050f;color:#cfe9ff;border:1px solid #234;' +
+      'border-radius:4px;padding:8px;font-family:monospace;font-size:12px;white-space:pre;';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+    const mkBtn = (label: string, bg: string, fg: string) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = `padding:7px 14px;border:none;border-radius:4px;cursor:pointer;font-family:monospace;font-size:12px;background:${bg};color:${fg};`;
+      return b;
+    };
+    const copy = mkBtn('Copy', '#00eaff', '#06121a');
+    copy.onclick = () => {
+      ta.select();
+      navigator.clipboard?.writeText(json).then(
+        () => (copy.textContent = 'Copied ✓'),
+        () => document.execCommand('copy') && (copy.textContent = 'Copied ✓'),
+      );
+    };
+    const close = mkBtn('Close', '#26304a', '#cfe9ff');
+    close.onclick = () => this.closeExportPanel();
+    row.append(copy, close);
+    card.append(title, ta, row);
+    panel.append(card);
+    panel.addEventListener('pointerdown', (e) => {
+      if (e.target === panel) this.closeExportPanel(); // click backdrop to dismiss
+    });
+    document.body.append(panel);
+    ta.focus();
+    ta.select();
+    this.exportPanel = panel;
+  }
+
+  private closeExportPanel() {
+    this.exportPanel?.remove();
+    this.exportPanel = undefined;
   }
 
   private refreshHud() {
