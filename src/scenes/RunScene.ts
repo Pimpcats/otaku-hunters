@@ -244,58 +244,20 @@ export class RunScene extends Phaser.Scene {
       // fixed-Y cross-section (sidewalk → curb → road), NOT a vertical repeat. Rendered at
       // GROUND_SCALE so its art features match the buildings' pixel scale (storefronts 0.4),
       // band centered on the player spawn row.
+      // ONE curb strip, no tiling: the current art has its ~14° slope baked in, so repeats
+      // can't line up. Single centered instance until the horizontal-tileable art lands —
+      // then switch back to a tileSprite (+ makeSeamlessX if the edges need help).
       const bandH = RunScene.TILE_H * RunScene.GROUND_SCALE;
-      // Band bottom = screen bottom at spawn (player starts screen-centered), so the street
-      // fills from under the wall to the bottom edge with no void strip.
+      // Band bottom = screen bottom at spawn (player starts screen-centered).
       const bandTop = WORLD / 2 + GAME_HEIGHT / 2 - bandH;
-      const key = this.makeSeamlessX('ground_neon'); // crossfade-wrapped → no repeat seam
       this.add
-        .tileSprite(0, bandTop, WORLD / RunScene.GROUND_SCALE, RunScene.TILE_H, key)
-        .setOrigin(0, 0)
+        .image(WORLD / 2, bandTop, 'ground_neon')
+        .setOrigin(0.5, 0)
         .setScale(RunScene.GROUND_SCALE)
         .setDepth(-100000);
     }
     // No pre-placed buildings: the street starts empty and the layout is composed by hand
     // in the editor (E → drag from tray, P → export JSON, paste here as addBuilding calls).
-  }
-
-  /** Build a horizontally-seamless copy of a texture for infinite X-tiling: the last BLEND
-   *  source px are dropped and the tail is crossfaded over the head, so the right edge wraps
-   *  pixel-continuously onto the left. Returns the new key (cached; falls back to the
-   *  original key if canvas work fails). */
-  private makeSeamlessX(srcKey: string): string {
-    const outKey = srcKey + '_seamx';
-    if (this.textures.exists(outKey)) return outKey;
-    const src = this.textures.get(srcKey).getSourceImage() as CanvasImageSource & { width: number; height: number };
-    const w = src.width;
-    const h = src.height;
-    const blend = Math.min(256, Math.floor(w / 4));
-    const outW = w - blend;
-    const tex = this.textures.createCanvas(outKey, outW, h);
-    if (!tex) return srcKey;
-    const ctx = tex.getContext();
-    ctx.drawImage(src, 0, 0, outW, h, 0, 0, outW, h); // head: out[x] = src[x]
-    // Tail strip src[w-blend..w) with alpha fading 1→0 left-to-right, laid over out[0..blend):
-    // out[0] == src[w-blend] (continues the previous tile's last pixel src[outW-1]) and
-    // out[blend] == src[blend] — both junctions pixel-continuous.
-    const strip = document.createElement('canvas');
-    strip.width = blend;
-    strip.height = h;
-    const sctx = strip.getContext('2d');
-    if (!sctx) {
-      this.textures.remove(outKey);
-      return srcKey;
-    }
-    sctx.drawImage(src, w - blend, 0, blend, h, 0, 0, blend, h);
-    const grad = sctx.createLinearGradient(0, 0, blend, 0);
-    grad.addColorStop(0, 'rgba(0,0,0,1)');
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    sctx.globalCompositeOperation = 'destination-in';
-    sctx.fillStyle = grad;
-    sctx.fillRect(0, 0, blend, h);
-    ctx.drawImage(strip, 0, 0);
-    tex.refresh();
-    return outKey;
   }
 
   /** Add one screen-space building (origin bottom-center, type-scaled, base-y depth-sorted)
