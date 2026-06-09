@@ -241,10 +241,17 @@ export class RunScene extends Phaser.Scene {
   private buildStreet() {
     if (this.textures.exists('ground_neon')) {
       // The street runs EAST–WEST: tile the ground only along X (its length), as a single
-      // fixed-Y cross-section (sidewalk → curb → road), NOT a vertical repeat.
+      // fixed-Y cross-section (sidewalk → curb → road), NOT a vertical repeat. Rendered at
+      // GROUND_SCALE so its art features match the buildings' pixel scale (storefronts 0.4),
+      // band centered on the player spawn row.
+      const bandH = RunScene.TILE_H * RunScene.GROUND_SCALE;
+      // Band bottom = screen bottom at spawn (player starts screen-centered), so the street
+      // fills from under the wall to the bottom edge with no void strip.
+      const bandTop = WORLD / 2 + GAME_HEIGHT / 2 - bandH;
       this.add
-        .tileSprite(0, RunScene.STREET_TOP_Y, WORLD, RunScene.TILE_H, 'ground_neon')
+        .tileSprite(0, bandTop, WORLD / RunScene.GROUND_SCALE, RunScene.TILE_H, 'ground_neon')
         .setOrigin(0, 0)
+        .setScale(RunScene.GROUND_SCALE)
         .setDepth(-100000);
     }
     // Starting north-wall: buildings normalized to a uniform on-screen height (type scale
@@ -316,7 +323,7 @@ export class RunScene extends Phaser.Scene {
   }
 
   private static readonly TILE_H = 887; // ground_neon tile height (one street cross-section)
-  private static readonly STREET_TOP_Y = 1774; // world Y of the single street band's top edge
+  private static readonly GROUND_SCALE = 0.4; // match storefront art scale (627px @ 0.4)
 
   private openPause() {
     if (this.dead || this.won || this.leveling || this.revealing) return;

@@ -1,18 +1,19 @@
 // In-game building placement editor (dev tool). Toggle with E.
 //
-// Workflow: press E → a tray of every building appears along the bottom. Click a tray item
-// to pick it, then click the world to place it. Click+drag any placed building to move it;
-// arrow keys nudge the selected one (1px, or 10px with Shift); [ and ] rotate it (1°, or 15°
-// with Shift). Delete removes it. P prints every building as a JSON array
-// ([{key,x,y,scale,angle}, …]) to the console for pasting into the scene code. E again exits
-// and locks positions.
+// Workflow: press E → a tray of every building appears along the bottom. DRAG a tray item
+// straight into the world to place it (a ghost follows the pointer; release above the tray
+// to drop, over the tray to cancel). Click+drag any placed building to move it; RIGHT-click
+// + drag horizontally to rotate it (or [ and ] keys: 1°, 15° with Shift); arrow keys nudge
+// the selected one (1px, or 10px with Shift). Delete removes it. P prints every building as
+// a JSON array ([{key,x,y,scale,angle}, …]) to the console for pasting into the scene code.
+// E again exits and locks positions.
 //
 // Buildings are screen-space (scrollFactor 0) at camera zoom 1.0, so their x/y ARE the screen
 // coordinates you place them at — paste straight into buildStreet().
 
 import Phaser from 'phaser';
 import { GAME_WIDTH as W, GAME_HEIGHT as H } from '../constants';
-import { ALL_BUILDINGS } from '../data/buildings';
+import { ALL_BUILDINGS, buildingScale } from '../data/buildings';
 
 const UI_DEPTH = 1_000_000; // editor overlays sit above everything
 const TRAY_H = 96;
@@ -26,6 +27,8 @@ export class BuildingEditor {
   private brushCells = new Map<string, Phaser.GameObjects.Rectangle>(); // tray highlight per key
   private hud?: Phaser.GameObjects.Text;
   private ring?: Phaser.GameObjects.Graphics;
+  private ghost?: Phaser.GameObjects.Image; // tray-drag preview following the pointer
+  private rotating?: { img: Phaser.GameObjects.Image; startAngle: number; startX: number };
 
   constructor(
     private scene: Phaser.Scene,
@@ -51,11 +54,53 @@ export class BuildingEditor {
       if (p.y > H - TRAY_H) return; // tray strip
       this.select(this.spawnInteractive(this.brushKey, Math.round(p.x), Math.round(p.y)));
     });
-    scene.input.on(Phaser.Input.Events.DRAG, (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject, dx: number, dy: number) => {
+
+    // Dragging a TRAY thumbnail spawns a ghost that follows the pointer; release above the
+    // tray to place it, over the tray to cancel. The thumbnail itself never moves.
+    scene.input.on(Phaser.Input.Events.DRAG_START, (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject) => {
+      if (!this.active) return;
+      const key = obj.getData?.('trayKey') as string | undefined;
+      if (!key) return;
+      this.ghost = scene.add
+        .image(p.x, p.y, key)
+        .setOrigin(0.5, 1)
+        .setScale(buildingScale(key))
+        .setAlpha(0.7)
+        .setScrollFactor(0)
+        .setDepth(UI_DEPTH + 3);
+      this.ghost.setData('key', key);
+      this.pickBrush(key);
+    });
+    scene.input.on(Phaser.Input.Events.DRAG, (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject, dx: number, dy: number) => {
       if (!this.active || !(obj instanceof Phaser.GameObjects.Image)) return;
+      if (obj.getData('trayKey')) {
+        this.ghost?.setPosition(Math.round(p.x), Math.round(p.y));
+        return;
+      }
+      if (this.rotating) return; // right-button drag = rotate, not move
       obj.setPosition(Math.round(dx), Math.round(dy)).setDepth(Math.round(dy));
       this.select(obj);
     });
+    scene.input.on(Phaser.Input.Events.DRAG_END, (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject) => {
+      if (!this.active) return;
+      const key = obj.getData?.('trayKey') as string | undefined;
+      if (!key) return;
+      this.ghost?.destroy();
+      this.ghost = undefined;
+      if (p.y < H - TRAY_H) this.select(this.spawnInteractive(key, Math.round(p.x), Math.round(p.y)));
+    });
+
+    // RIGHT-click + horizontal drag on a building = rotate (¼° per pixel).
+    scene.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
+      if (!this.active || !this.rotating) return;
+      if (!p.rightButtonDown()) {
+        this.rotating = undefined;
+        return;
+      }
+      this.rotating.img.angle = this.rotating.startAngle + (p.x - this.rotating.startX) * 0.25;
+      this.refreshHud();
+    });
+    scene.input.on(Phaser.Input.Events.POINTER_UP, () => (this.rotating = undefined));
   }
 
   private toggle() {
@@ -64,6 +109,7 @@ export class BuildingEditor {
 
   private enter() {
     this.active = true;
+    this.scene.input.mouse?.disableContextMenu(); // right-click is rotate, not browser menu
     for (const b of this.buildings) this.makeInteractive(b);
     this.buildTray();
     this.ring = this.scene.add.graphics().setScrollFactor(0).setDepth(UI_DEPTH + 1);
@@ -85,6 +131,9 @@ export class BuildingEditor {
     this.ring = undefined;
     this.hud?.destroy();
     this.hud = undefined;
+    this.ghost?.destroy();
+    this.ghost = undefined;
+    this.rotating = undefined;
     this.brushKey = null;
     this.selected = undefined;
   }
@@ -95,7 +144,7 @@ export class BuildingEditor {
     tray.add(this.scene.add.rectangle(0, H - TRAY_H, W, TRAY_H, 0x05030f, 0.92).setOrigin(0, 0));
     tray.add(
       this.scene.add
-        .text(8, H - TRAY_H + 2, 'EDITOR  ·  click tile → click world to place  ·  drag move  ·  arrows nudge (⇧×10)  ·  [ ] rotate  ·  Del remove  ·  P export  ·  E exit', {
+        .text(8, H - TRAY_H + 2, 'EDITOR  ·  drag tile into world to place  ·  drag move  ·  right-drag rotate (or [ ])  ·  arrows nudge (⇧×10)  ·  Del remove  ·  P export  ·  E exit', {
           fontFamily: 'monospace',
           fontSize: '11px',
           color: '#8aa0c8',
@@ -110,10 +159,13 @@ export class BuildingEditor {
       const cell = this.scene.add.rectangle(cx, cy, step - 6, TRAY_H - 18, 0x1a1340, 0).setStrokeStyle(2, 0x00eaff, 0);
       tray.add(cell);
       this.brushCells.set(key, cell);
-      const src = this.scene.textures.get(key).getSourceImage() as { height: number };
-      const thumb = this.scene.add.image(cx, cy, key).setScale(THUMB_H / (src.height || THUMB_H)); // keep aspect via height
-      thumb.setInteractive({ useHandCursor: true });
-      thumb.on('pointerdown', () => this.pickBrush(key));
+      const src = this.scene.textures.get(key).getSourceImage() as { width: number; height: number };
+      const fit = Math.min((step - 12) / (src.width || 1), THUMB_H / (src.height || 1)); // fit cell, keep aspect
+      const thumb = this.scene.add.image(cx, cy, key).setScale(fit);
+      thumb.setData('trayKey', key);
+      thumb.setInteractive({ draggable: true, useHandCursor: true });
+      this.scene.input.setDraggable(thumb);
+      thumb.on('pointerdown', () => this.pickBrush(key)); // click still arms the brush (click-world to place)
       tray.add(thumb);
       tray.add(
         this.scene.add.text(cx, H - 14, key.replace(/_/g, ' '), { fontFamily: 'monospace', fontSize: '9px', color: '#cfd6f5' }).setOrigin(0.5, 0),
@@ -134,11 +186,14 @@ export class BuildingEditor {
     return img;
   }
 
-  /** Make a building draggable + click-selectable while the editor is open. */
+  /** Make a building draggable + click-selectable (right-click starts a rotate-drag). */
   makeInteractive(img: Phaser.GameObjects.Image) {
     img.setInteractive({ draggable: true, useHandCursor: true });
     this.scene.input.setDraggable(img);
-    img.on('pointerdown', () => this.select(img));
+    img.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.select(img);
+      if (p.rightButtonDown()) this.rotating = { img, startAngle: img.angle, startX: p.x };
+    });
   }
 
   private select(img: Phaser.GameObjects.Image) {
