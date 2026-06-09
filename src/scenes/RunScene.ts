@@ -248,63 +248,54 @@ export class RunScene extends Phaser.Scene {
       // Band bottom = screen bottom at spawn (player starts screen-centered), so the street
       // fills from under the wall to the bottom edge with no void strip.
       const bandTop = WORLD / 2 + GAME_HEIGHT / 2 - bandH;
+      const key = this.makeSeamlessX('ground_neon'); // crossfade-wrapped → no repeat seam
       this.add
-        .tileSprite(0, bandTop, WORLD / RunScene.GROUND_SCALE, RunScene.TILE_H, 'ground_neon')
+        .tileSprite(0, bandTop, WORLD / RunScene.GROUND_SCALE, RunScene.TILE_H, key)
         .setOrigin(0, 0)
         .setScale(RunScene.GROUND_SCALE)
         .setDepth(-100000);
     }
-    // Starting north-wall: buildings normalized to a uniform on-screen height (type scale
-    // 0.4/0.2) and packed EDGE-TO-EDGE (measured opaque widths, slight overlap so no seam)
-    // along the 16° wall line wallY(x) = BASE_Y − x·tan16. Fine-tune live with E, export with P.
-    const ORDER = ['anime_shop', 'utility_wall', 'game_center', 'poster_wall', 'karaoke'];
-    const TAN16 = Math.tan((16 * Math.PI) / 180);
-    const BASE_Y = 350 + 200 * TAN16; // anchor: wallY(200) = 350
-    const OVERLAP = 6;
-    let prevRight = Number.NEGATIVE_INFINITY;
-    for (const key of ORDER) {
-      if (!this.textures.exists(key)) continue;
-      const scale = buildingScale(key);
-      const bb = this.opaqueBBox(key);
-      const canvasCx = bb.cw / 2;
-      const leftExt = (canvasCx - bb.l) * scale;
-      const rightExt = (bb.r - canvasCx) * scale;
-      const bottomPad = (bb.ch - bb.b) * scale; // drop the art's feet onto the line
-      const cx = prevRight === Number.NEGATIVE_INFINITY ? 200 : prevRight + leftExt - OVERLAP;
-      const lineY = BASE_Y - cx * TAN16;
-      this.addBuilding(key, Math.round(cx), Math.round(lineY + bottomPad));
-      prevRight = cx + rightExt;
-    }
+    // No pre-placed buildings: the street starts empty and the layout is composed by hand
+    // in the editor (E → drag from tray, P → export JSON, paste here as addBuilding calls).
   }
 
-  /** Opaque bounding box of a texture (source px) — alpha-scanned so widths are the VISIBLE
-   *  art, not the padded canvas, for true edge-to-edge packing. */
-  private opaqueBBox(key: string): { l: number; r: number; b: number; cw: number; ch: number } {
-    const src = this.textures.get(key).getSourceImage() as CanvasImageSource & { width: number; height: number };
-    const cw = src.width;
-    const ch = src.height;
-    const scratch = this.textures.createCanvas('_bbox_scratch', cw, ch);
-    if (!scratch) return { l: 0, r: cw - 1, b: ch - 1, cw, ch };
-    const ctx = scratch.getContext();
-    ctx.clearRect(0, 0, cw, ch);
-    ctx.drawImage(src, 0, 0);
-    const data = ctx.getImageData(0, 0, cw, ch).data;
-    let l = cw;
-    let r = 0;
-    let b = 0;
-    let any = false;
-    for (let y = 0; y < ch; y += 3) {
-      for (let x = 0; x < cw; x += 3) {
-        if (data[(y * cw + x) * 4 + 3] > 20) {
-          any = true;
-          if (x < l) l = x;
-          if (x > r) r = x;
-          if (y > b) b = y;
-        }
-      }
+  /** Build a horizontally-seamless copy of a texture for infinite X-tiling: the last BLEND
+   *  source px are dropped and the tail is crossfaded over the head, so the right edge wraps
+   *  pixel-continuously onto the left. Returns the new key (cached; falls back to the
+   *  original key if canvas work fails). */
+  private makeSeamlessX(srcKey: string): string {
+    const outKey = srcKey + '_seamx';
+    if (this.textures.exists(outKey)) return outKey;
+    const src = this.textures.get(srcKey).getSourceImage() as CanvasImageSource & { width: number; height: number };
+    const w = src.width;
+    const h = src.height;
+    const blend = Math.min(256, Math.floor(w / 4));
+    const outW = w - blend;
+    const tex = this.textures.createCanvas(outKey, outW, h);
+    if (!tex) return srcKey;
+    const ctx = tex.getContext();
+    ctx.drawImage(src, 0, 0, outW, h, 0, 0, outW, h); // head: out[x] = src[x]
+    // Tail strip src[w-blend..w) with alpha fading 1→0 left-to-right, laid over out[0..blend):
+    // out[0] == src[w-blend] (continues the previous tile's last pixel src[outW-1]) and
+    // out[blend] == src[blend] — both junctions pixel-continuous.
+    const strip = document.createElement('canvas');
+    strip.width = blend;
+    strip.height = h;
+    const sctx = strip.getContext('2d');
+    if (!sctx) {
+      this.textures.remove(outKey);
+      return srcKey;
     }
-    this.textures.remove('_bbox_scratch');
-    return any ? { l, r, b, cw, ch } : { l: 0, r: cw - 1, b: ch - 1, cw, ch };
+    sctx.drawImage(src, w - blend, 0, blend, h, 0, 0, blend, h);
+    const grad = sctx.createLinearGradient(0, 0, blend, 0);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    sctx.globalCompositeOperation = 'destination-in';
+    sctx.fillStyle = grad;
+    sctx.fillRect(0, 0, blend, h);
+    ctx.drawImage(strip, 0, 0);
+    tex.refresh();
+    return outKey;
   }
 
   /** Add one screen-space building (origin bottom-center, type-scaled, base-y depth-sorted)
