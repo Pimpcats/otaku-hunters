@@ -73,6 +73,10 @@ stand-in works) · ☐ missing (drop zone empty).
 | `neon_street_tile_c.webp` (512×512) | Neon Street floor variant C (yellow chevrons, drainage gutter) | ✓ ready | ✓ wired (variant atlas) |
 | `neon_street_tile_d.webp` (512×512) | Neon Street floor variant D (crosswalk stripes, pins, puddles) | ✓ ready | ✓ wired (variant atlas) |
 | `neonstreet_floor_tile.webp` (1254×1254) | (older single neon-street tile) | ✓ stored | superseded by the A–D variant set above |
+| `floor_street_a.png` (512×512) | Outdoor street A: crosswalk, magenta puddle, orange lane | ✓ ready | ✓ **active** (supersedes neon_street as the variant-atlas source) |
+| `floor_street_b.png` (512×512) | Outdoor street B: manhole, cyan puddle, confetti | ✓ ready | ✓ **active** |
+| `floor_street_c.png` (512×512) | Outdoor street C: manhole, faded crosswalk, purple puddle | ✓ ready | ✓ **active** |
+| `floor_street_d.png` (512×512) | Outdoor street D: yellow center line, pink/cyan puddles, litter | ✓ ready | ✓ **active** |
 | `themepark_floor_tile.png` | Theme-park stage floor | ☐ missing | needs stage wiring |
 
 > **Neon Street multi-tile floor:** when `RENDER.floorTexture` **and** `RENDER.floorTileVariants`
@@ -90,6 +94,50 @@ stand-in works) · ☐ missing (drop zone empty).
 | `arcade_near.webp` (1920×1024) | near arcade street | ✓ ready | ✓ **active** (front; fills the band) |
 
 > Toggle `RENDER.useParallaxArt = false` to A/B against the all-procedural look.
+> The parallax skyline now renders on a separate **BackgroundScene** (un-zoomed) behind
+> the zoomed gameplay so it never pixelates — it reads as the distant skyline peeking
+> over the world-space street props.
+
+## Street props — `public/sprites/props/` (world-space corridor dressing)
+World-space neon props (`systems/streetProps.ts`) line repeating street corridors so the
+player runs THROUGH a neighbourhood. Manifest-gated like the walk sheets; absent files
+fall back to procedural neon-rectangle placeholders, so the spatial layout is tunable now
+(`RENDER.streetWidth / propDensity / propScale / foregroundOccluderAlpha`) and art swaps
+in with no layout change.
+
+Placement (`systems/streetProps.ts`): TALL props line the FAR storefront edge (y-sorted),
+SHORT props occlude on the NEAR edge (`foregroundOccluderAlpha`), and lanterns hang
+OVERHEAD (fixed high depth, not y-sorted). **All present + wired + in the manifest** (the
+art was uploaded to `main`; pulled onto this branch). Procedural placeholders remain as the
+automatic fallback for any future missing file.
+
+| File | Use | Sheet spec → anim(s) | Edge |
+|---|---|---|---|
+| `prop_vending_machine.png` | 自販機 vending machine (trim cycles, can drops) | 2048×768, 4×(512×768) → `prop_vending_idle` @3 | far |
+| `prop_arcade_cabinet.png` | arcade cabinet (attract-mode screen) | 2001×786, 4×(500×786) → `prop_arcade_idle` @2 | far |
+| `prop_lanterns.png` | 祭 festival lanterns (sway) | 2048×768, 4×(512×768) → `prop_lanterns_idle` @2 | overhead |
+| `prop_neon_signs.png` | 3 signs in one sheet | 1536×1024, 3 rows×4 cols (384×341) → `sign_gesen` 0–3, `sign_karaoke` 4–7, `sign_ramen` 8–11 @3 | far |
+| `prop_power_pole.png` | power pole + wires (高圧注意) | 400×646 static | far |
+| `prop_railing.png` | street barrier/railing | 343×300 static | near |
+| `prop_cat_trashcan.png` | trash can + black cat (不法投棄) | 350×427 static | near |
+| `prop_crates.png` | stacked crates (われもの注意) | 437×400 static | near |
+| `prop_bicycle.png` | parked bicycle (駐輪禁止) | 450×396 static | near |
+| `prop_sale_sign.png` | A-frame neon セール sign | 303×500 static | near |
+| `facade_anime_shop.png` | アニメ shop storefront | 768×512 static | back wall |
+| `facade_game_center.png` | ゲーセン storefront | 768×512 static | back wall |
+| `facade_karaoke.png` | カラオケ storefront | 768×512 static | back wall |
+| `facade_konbini.png` | コンビニ storefront | 768×512 static | back wall |
+
+> **Facade back wall** (`systems/facadeWall.ts`): the 4 front-view facades tile a continuous,
+> pooled storefront wall along each street seam — world-space (zooms + scrolls 1:1 with the
+> camera), depth-banded BEHIND entities/props and IN FRONT of the parallax. **Present + active.**
+> NOTE: the facade PNGs currently have a baked Ⓐ/Ⓑ/Ⓒ/Ⓓ identifier letter in the top-left
+> corner (from the art export) that shows in-game — re-export without it for clean storefronts.
+
+> To activate any prop: commit the PNG to `public/sprites/props/<file>` and add its path to
+> `public/art-manifest.json`. The loader (`ui/props.ts`) slices it (spritesheets) + registers
+> its anim(s); `StreetProps` then uses the real animated/static sprite instead of the
+> procedural placeholder automatically — no layout change.
 
 ## UI — `public/ui/` (transparent) — all **wire-on-request** (HUD is procedural today)
 | Folder | Files | Spec | Status |

@@ -3,6 +3,7 @@ import { generatePlaceholderTextures } from '../ui/textures';
 import { bakePlayerSheets, loadPlayerSheets, registerPlayerAnims, loadHeroSheets, bakeHeroSheets } from '../ui/playerSheet';
 import { applyKenneyAssets, loadKenneyAssets } from '../ui/kenneyAssets';
 import { loadEnemyWalkSheets, bakeEnemyWalkSheets } from '../ui/enemyAnims';
+import { loadPropSheets, registerPropAnims } from '../ui/props';
 import { loadVoiceManifest, loadVoiceFor } from '../audio/tts';
 import { CHARACTERS } from '../data/characters';
 import { getContentIndex } from '../data/contentIndex';
@@ -24,10 +25,26 @@ export class BootScene extends Phaser.Scene {
     // Animated-enemy walk sheets (optional; manifest-gated). Must follow
     // loadKenneyAssets — it queues the art-manifest json these read to self-gate.
     loadEnemyWalkSheets(this);
+    // Optional world-space street prop sheets (e.g. the animated vending machine);
+    // manifest-gated like the walk sheets — absent files fall back to procedural props.
+    loadPropSheets(this);
     // Tiling floor texture for the 2.5D ground plane (placeholder; see CREDITS.md).
     // A Kenney floor.png (loaded above) overrides this in create(); if neither is
     // present the backdrop falls back to the wireframe grid.
     this.load.image(FLOOR_TEXTURE_KEY, `${import.meta.env.BASE_URL}textures/floors/floor_placeholder.png`);
+
+    // ── New asset-by-asset street build (public/assets/ pipeline) ──────────────
+    // Direct loads (files committed to the repo). NOTE vs the request: storefronts
+    // live under assets/storefronts/ (not assets/buildings/storefronts/), and the
+    // ground file is ground_neon_v3.png (no plain ground_neon.png) — keyed 'ground_neon'.
+    const A = `${import.meta.env.BASE_URL}assets/`;
+    this.load.image('ground_neon', `${A}ground/ground_neon_v3.png`);
+    for (const k of ['anime_shop', 'game_center', 'karaoke', 'konbini']) {
+      this.load.image(k, `${A}storefronts/${k}.png`);
+    }
+    for (const k of ['utility_wall', 'alley_gap', 'poster_wall', 'service_shutter', 'apartment_wall', 'izakaya', 'hotel', 'pharmacy']) {
+      this.load.image(k, `${A}buildings/exteriors/${k}.png`);
+    }
   }
 
   create() {
@@ -48,6 +65,7 @@ export class BootScene extends Phaser.Scene {
     registerPlayerAnims(this);
     bakeHeroSheets(this); // slice the rect hero sheets over their facing keys (overrides procedural)
     bakeEnemyWalkSheets(this); // bake walk sheets → per-direction enemy walk anims (applyFacing uses them)
+    registerPropAnims(this); // register present prop sheets' idle anims (e.g. prop_vending_idle)
 
     // Build the content index once up front so a malformed lessons.js surfaces
     // in the console here rather than mid-run (guardrail §8.7: never blocks).

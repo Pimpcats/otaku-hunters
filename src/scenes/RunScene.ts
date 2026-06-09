@@ -19,7 +19,6 @@ import {
 import { InputController } from '../systems/input';
 import { WeaponManager } from '../systems/weapons';
 import { Spawner } from '../systems/spawner';
-import { Hud } from '../ui/hud';
 import { ARCHETYPES, type EnemyData } from '../entities/enemies/archetypes';
 import { PlayerLoadout } from '../systems/loadout';
 import { speak, stopAudio, setActiveVoice } from '../audio/tts';
@@ -27,10 +26,15 @@ import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToDir8, reverseDir, type FacingDir } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
 import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
-import { RENDER, DEPTH, baselineY } from '../data/render';
+import { RENDER, DEPTH, baselineY, STAGE_LAYERS } from '../data/render';
 import { ShadowLayer } from '../systems/shadows';
 import { Backdrop } from '../systems/backdrop';
 import { Atmosphere } from '../ui/atmosphere';
+import { StreetProps } from '../systems/streetProps';
+import { FacadeWall } from '../systems/facadeWall';
+import { BuildingEditor } from '../systems/buildingEditor';
+import { buildingScale } from '../data/buildings';
+import type { HudScene } from './HudScene';
 import { readingOf } from '../systems/romaji';
 
 const WORLD = 4000;
@@ -38,6 +42,17 @@ const WORD_DROP_CHANCE = 0.18;
 const HP_BAR_W = 46;
 
 type Sprite = Phaser.Physics.Arcade.Sprite;
+
+/** Lerp between two 0xRRGGBB ints (for the Lurker's escalating enrage tint). */
+function lerpColor(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  return (
+    (Math.round(ar + (br - ar) * t) << 16) |
+    (Math.round(ag + (bg - ag) * t) << 8) |
+    Math.round(ab + (bb - ab) * t)
+  );
+}
 
 export interface LevelUpResult {
   grade: Grade;
@@ -59,11 +74,15 @@ export class RunScene extends Phaser.Scene {
   private weapon!: WeaponManager;
   private spawner!: Spawner;
   private controls!: InputController;
-  private hud!: Hud;
-  private ground!: Backdrop;
+  private ground?: Backdrop;
+  private props?: StreetProps;
+  private facades?: FacadeWall;
+  private buildings: Phaser.GameObjects.Image[] = []; // editable street buildings
+  private editor!: BuildingEditor;
   private shadows!: ShadowLayer;
   private hpBarBack!: Phaser.GameObjects.Rectangle;
   private hpBarFill!: Phaser.GameObjects.Rectangle;
+  private tetherGfx!: Phaser.GameObjects.Graphics; // Glomper latch tether (redrawn each frame)
 
   private dir = new Phaser.Math.Vector2();
   private facing: FacingDir = 'down';
@@ -133,23 +152,43 @@ export class RunScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, WORLD, WORLD);
     this.cameras.main.setBounds(0, 0, WORLD, WORLD);
-    // Layers 3+4: the tilted ground plane + parallax (screen-space, behind everything).
-    this.ground = new Backdrop(this);
+
+    // Sibling scenes: the distant skyline (behind, un-zoomed) and the HUD (in front,
+    // un-zoomed). Launched in parallel so the gameplay camera can zoom the world while
+    // they stay screen-scale. Stopped again in this scene's SHUTDOWN handler.
+    // (Background is gated by the asset-assessment toggle; the HUD always shows.)
+    if (STAGE_LAYERS.background) this.scene.launch('Background');
+    this.scene.launch('Hud');
+
+    // Environment layers, each gated by STAGE_LAYERS so we can assess them one at a time.
+    if (STAGE_LAYERS.floor) this.ground = new Backdrop(this, { layer: 'floor' }); // tilted FLOOR plane
+    if (STAGE_LAYERS.facades) this.facades = new FacadeWall(this); // storefront back wall
+    if (STAGE_LAYERS.props) this.props = new StreetProps(this, WORLD, WORLD); // street props
+
+    this.buildStreet();
+    // Dev tool: press E to place/drag/rotate buildings and export their coords (see console).
+    this.editor = new BuildingEditor(this, this.buildings, (k, x, y) => this.addBuilding(k, x, y));
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
     this.player.setCollideWorldBounds(true);
     this.player.setVisible(false); // the body is invisible; the rig below is the art
+    this.cameras.main.setZoom(RENDER.cameraZoom); // street-level framing (DIAGNOSTIC pass)
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     // As tilt rises, drop the player lower on screen so the floor (and the 360°
-    // swarm) stays framed above them.
-    this.cameras.main.setFollowOffset(0, RENDER.cameraHeightBias * this.cameras.main.height * RENDER.groundTilt);
+    // swarm) stays framed above them. Divide by zoom: the offset is in world px, and
+    // the camera renders it ×zoom, so /zoom keeps the on-screen shift constant.
+    this.cameras.main.setFollowOffset(
+      0,
+      (RENDER.cameraHeightBias * this.cameras.main.height * RENDER.groundTilt) / RENDER.cameraZoom,
+    );
 
     // Visible sprite decoupled from the physics body so the walk-bob (a vertical
     // hop) never disturbs the hitbox or camera — the rig just tracks the body.
     this.rig = this.add.sprite(this.player.x, this.player.y, dirTextureKey(this.character.texture, 'down'));
     this.rig.setScale(this.player.scaleX, this.player.scaleY);
     this.rig.setDepth(50);
+    this.rig.setVisible(STAGE_LAYERS.actors); // hidden in asset-assessment mode (camera still pans)
     initWalkBob(this.rig);
 
     this.shadows = new ShadowLayer(this);
@@ -162,7 +201,6 @@ export class RunScene extends Phaser.Scene {
     this.weapon = new WeaponManager(this, this.loadout);
     this.spawner = new Spawner((key, x, y) => this.spawnEnemy(key, x, y));
     this.controls = new InputController(this);
-    this.hud = new Hud(this);
 
     this.physics.add.overlap(this.weapon.bullets, this.enemies, this.onBulletHit, undefined, this);
     this.physics.add.overlap(this.player, this.enemies, this.onPlayerHit, undefined, this);
@@ -170,20 +208,113 @@ export class RunScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.wordTokens, this.onCollectWord, undefined, this);
     this.physics.add.overlap(this.player, this.gacha, this.onCollectGacha, undefined, this);
 
+    // Glomper latch tethers — one shared additive graphics, redrawn each frame.
+    this.tetherGfx = this.add.graphics().setDepth(DEPTH.vfx - 1).setBlendMode(Phaser.BlendModes.ADD);
+
     // Floating HP bar above the player (world-space).
     this.hpBarBack = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hpBack).setOrigin(0, 0.5).setDepth(DEPTH.hpBar);
     this.hpBarFill = this.add.rectangle(0, 0, HP_BAR_W, 6, COLORS.hp).setOrigin(0, 0.5).setDepth(DEPTH.hpBar + 1);
+    this.hpBarBack.setVisible(STAGE_LAYERS.actors);
+    this.hpBarFill.setVisible(STAGE_LAYERS.actors);
 
-    // Layer 5: vignette + poppy grade (static screen-space overlays, below the HUD).
-    new Atmosphere(this);
+    // Layer 5: the neon bloom/saturate post-FX on THIS (zoomed) camera so the world
+    // glows; the screen-space vignette/grade overlay lives on the HUD scene.
+    new Atmosphere(this, { glow: true, overlay: false });
 
     // Pause on ESC or Space.
     this.input.keyboard?.on('keydown-ESC', this.openPause, this);
     this.input.keyboard?.on('keydown-SPACE', this.openPause, this);
 
-    // Stop any voice clip when the run ends / transitions away.
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopAudio);
+    // Tear down the sibling scenes + stop any voice clip when the run ends.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      stopAudio();
+      this.props?.destroy();
+      this.facades?.destroy();
+      this.scene.stop('Background');
+      this.scene.stop('Hud');
+    });
   }
+
+  /** Asset-by-asset street build: the east–west ground band + the starting north-wall
+   *  buildings. Positions are dialed in live via the in-game editor (press E) and pasted back
+   *  here. Buildings are screen-space (scrollFactor 0) at zoom 1.0, so x/y are screen pixels. */
+  private buildStreet() {
+    if (this.textures.exists('ground_neon')) {
+      // The street runs EAST–WEST: tile the ground only along X (its length), as a single
+      // fixed-Y cross-section (sidewalk → curb → road), NOT a vertical repeat. Rendered at
+      // GROUND_SCALE so its art features match the buildings' pixel scale (storefronts 0.4),
+      // band centered on the player spawn row.
+      const bandH = RunScene.TILE_H * RunScene.GROUND_SCALE;
+      // Band bottom = screen bottom at spawn (player starts screen-centered), so the street
+      // fills from under the wall to the bottom edge with no void strip.
+      const bandTop = WORLD / 2 + GAME_HEIGHT / 2 - bandH;
+      const key = this.makeSeamlessX('ground_neon'); // crossfade-wrapped → no repeat seam
+      this.add
+        .tileSprite(0, bandTop, WORLD / RunScene.GROUND_SCALE, RunScene.TILE_H, key)
+        .setOrigin(0, 0)
+        .setScale(RunScene.GROUND_SCALE)
+        .setDepth(-100000);
+    }
+    // No pre-placed buildings: the street starts empty and the layout is composed by hand
+    // in the editor (E → drag from tray, P → export JSON, paste here as addBuilding calls).
+  }
+
+  /** Build a horizontally-seamless copy of a texture for infinite X-tiling: the last BLEND
+   *  source px are dropped and the tail is crossfaded over the head, so the right edge wraps
+   *  pixel-continuously onto the left. Returns the new key (cached; falls back to the
+   *  original key if canvas work fails). */
+  private makeSeamlessX(srcKey: string): string {
+    const outKey = srcKey + '_seamx';
+    if (this.textures.exists(outKey)) return outKey;
+    const src = this.textures.get(srcKey).getSourceImage() as CanvasImageSource & { width: number; height: number };
+    const w = src.width;
+    const h = src.height;
+    const blend = Math.min(256, Math.floor(w / 4));
+    const outW = w - blend;
+    const tex = this.textures.createCanvas(outKey, outW, h);
+    if (!tex) return srcKey;
+    const ctx = tex.getContext();
+    ctx.drawImage(src, 0, 0, outW, h, 0, 0, outW, h); // head: out[x] = src[x]
+    // Tail strip src[w-blend..w) with alpha fading 1→0 left-to-right, laid over out[0..blend):
+    // out[0] == src[w-blend] (continues the previous tile's last pixel src[outW-1]) and
+    // out[blend] == src[blend] — both junctions pixel-continuous.
+    const strip = document.createElement('canvas');
+    strip.width = blend;
+    strip.height = h;
+    const sctx = strip.getContext('2d');
+    if (!sctx) {
+      this.textures.remove(outKey);
+      return srcKey;
+    }
+    sctx.drawImage(src, w - blend, 0, blend, h, 0, 0, blend, h);
+    const grad = sctx.createLinearGradient(0, 0, blend, 0);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    sctx.globalCompositeOperation = 'destination-in';
+    sctx.fillStyle = grad;
+    sctx.fillRect(0, 0, blend, h);
+    ctx.drawImage(strip, 0, 0);
+    tex.refresh();
+    return outKey;
+  }
+
+  /** Add one screen-space building (origin bottom-center, type-scaled, base-y depth-sorted)
+   *  and register it for the editor. Returns the image so the editor can place/track it. */
+  private addBuilding(key: string, x: number, y: number, angle = 0): Phaser.GameObjects.Image {
+    const img = this.add
+      .image(x, y, key)
+      .setOrigin(0.5, 1)
+      .setScale(buildingScale(key))
+      .setScrollFactor(0)
+      .setDepth(y)
+      .setAngle(angle);
+    img.setData('key', key);
+    this.buildings.push(img);
+    return img;
+  }
+
+  private static readonly TILE_H = 887; // ground_neon tile height (one street cross-section)
+  private static readonly GROUND_SCALE = 0.4; // match storefront art scale (627px @ 0.4)
 
   private openPause() {
     if (this.dead || this.won || this.leveling || this.revealing) return;
@@ -218,6 +349,12 @@ export class RunScene extends Phaser.Scene {
     e.setFlipX(false);
     e.setDepth(40);
     e.clearTint();
+    e.setAlpha(1);
+    e.anims.timeScale = 1;
+    this.clearEnemyVfx(e); // drop a recycled enemy's leftover glow/alpha
+    e.setData('wasLatched', false);
+    e.setData('tellNext', 0);
+    e.setData('hitUntil', 0);
     e.setData('speed', Math.round(st.speed * curse));
     e.setData('tint', undefined);
     e.setData('face', 'down');
@@ -277,6 +414,7 @@ export class RunScene extends Phaser.Scene {
     }
     ed.hp -= amount;
     e.setTintFill(0xffffff);
+    e.setData('hitUntil', this.time.now + 40); // ambient-tint vfx defers to the hit flash
     this.time.delayedCall(40, () => {
       if (!e.active) return;
       const tc = e.getData('tint') as number | undefined;
@@ -293,6 +431,7 @@ export class RunScene extends Phaser.Scene {
   /** Brief blue spark when a hit is shrugged off (Too-Cool tell) — no damage. */
   private deflect(e: Sprite) {
     e.setTint(0x9af6ff);
+    e.setData('hitUntil', this.time.now + 70);
     this.time.delayedCall(70, () => {
       if (!e.active) return;
       const tc = e.getData('tint') as number | undefined;
@@ -301,13 +440,143 @@ export class RunScene extends Phaser.Scene {
     });
   }
 
-  /** Localized white pop where a Camera Gremlin flashes (cheap, fades fast). */
+  /** Camera Gremlin's blinding shutter flash: a bright white disc (~200px) that briefly
+   *  obscures the play area where it stands, fading over ~300ms, + a camera-shutter SFX
+   *  if one is available. */
   private cameraFlash(x: number, y: number) {
     const c = this.add
-      .circle(x, y, 26, 0xffffff, 0.5)
+      .circle(x, y, 40, 0xffffff, 0.9)
       .setDepth(DEPTH.vfx)
       .setBlendMode(Phaser.BlendModes.ADD);
-    this.tweens.add({ targets: c, scale: 3, alpha: 0, duration: 320, ease: 'Cubic.out', onComplete: () => c.destroy() });
+    this.tweens.add({ targets: c, scale: 5, alpha: 0, duration: 300, ease: 'Cubic.out', onComplete: () => c.destroy() });
+    // A quick lens "pop" halo for the shutter read.
+    const ring = this.add.circle(x, y, 30, 0x9fe8ff, 0.7).setDepth(DEPTH.vfx).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 360, ease: 'Quad.out', onComplete: () => ring.destroy() });
+    if (this.sound && this.cache.audio.exists('sfx_shutter')) this.sound.play('sfx_shutter', { volume: 0.5 });
+  }
+
+  // ── per-archetype visual tells ─────────────────────────────────────────────
+  /** Set an ambient (non-flash) tint via the 'tint' data channel so the brief hit
+   *  flash still wins while it's showing, then restores to this colour. */
+  private applyAmbientTint(e: Sprite, tint?: number) {
+    e.setData('tint', tint);
+    if (this.time.now < ((e.getData('hitUntil') as number) ?? 0)) return; // defer to the hit flash
+    if (tint === undefined) e.clearTint();
+    else e.setTint(tint);
+  }
+
+  /** Drive each archetype's readable visual tell from its AI state. */
+  private enemyVfx(e: Sprite, ed: EnemyData, arc: EnemyData['archetype'], vmag: number) {
+    switch (arc.key) {
+      case 'AnxiousOne': // panic-blue + sweat drops while fleeing
+        if (ed.state === 'flee') {
+          this.applyAmbientTint(e, 0x7fb0ff);
+          this.spawnTell(e, 'sweat', 200);
+        } else this.applyAmbientTint(e, undefined);
+        break;
+      case 'TooCool': // bright white + alpha pulse + sunglasses glint while untargetable
+        if (ed.invuln) {
+          const pulse = 0.5 + 0.5 * Math.sin(this.time.now * 0.03);
+          this.applyAmbientTint(e, 0xffffff);
+          e.setAlpha(0.55 + 0.45 * pulse);
+          this.spawnTell(e, 'glint', 130);
+        } else if (e.alpha !== 1 || e.getData('tint') !== undefined) {
+          this.applyAmbientTint(e, undefined);
+          e.setAlpha(1);
+        }
+        break;
+      case 'IdolWota': // cyan/magenta glowstick trail tracing the weave
+        if (vmag > 4) this.spawnTell(e, 'glow', 70);
+        break;
+      case 'Lurker': { // escalates redder + a pulsing enrage glow as it powers up
+        const frac = Phaser.Math.Clamp((ed.buff ?? 0) / Math.max(0.001, BEHAVIOR.lurker.buffMax - 1), 0, 1);
+        this.applyAmbientTint(e, frac > 0.03 ? lerpColor(0xffffff, 0xff2a18, frac) : undefined);
+        this.syncLurkerGlow(e, frac);
+        break;
+      }
+      case 'Glomper': { // a glowing tether to the player while latched + a contact jolt
+        const was = (e.getData('wasLatched') as boolean) ?? false;
+        if (ed.latched) {
+          this.drawTether(e);
+          if (!was) this.cameras.main.shake(110, 0.006);
+        }
+        e.setData('wasLatched', ed.latched ?? false);
+        break;
+      }
+    }
+  }
+
+  /** Throttled little particle tell (sweat / glint / glowstick) above an enemy. */
+  private spawnTell(e: Sprite, kind: 'sweat' | 'glint' | 'glow', everyMs: number) {
+    const now = this.time.now;
+    if (now < ((e.getData('tellNext') as number) ?? 0)) return;
+    e.setData('tellNext', now + everyMs);
+    const top = e.y - e.displayHeight * 0.5;
+    if (kind === 'sweat') {
+      const d = this.add
+        .circle(e.x + Phaser.Math.Between(-6, 6), top + 2, 2.5, 0xbfe6ff, 0.9)
+        .setDepth(baselineY(e) + 1)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: d, y: d.y + 13, alpha: 0, duration: 430, onComplete: () => d.destroy() });
+    } else if (kind === 'glint') {
+      const s = this.add
+        .star(e.x + e.displayWidth * 0.16, e.y - e.displayHeight * 0.55, 4, 1.5, 5, 0xffffff)
+        .setDepth(baselineY(e) + 2)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: s, scale: { from: 0.3, to: 1.2 }, alpha: { from: 1, to: 0 }, angle: 90, duration: 260, onComplete: () => s.destroy() });
+    } else {
+      const tog = !(e.getData('gsTog') as boolean);
+      e.setData('gsTog', tog);
+      const dot = this.add
+        .circle(e.x, e.y - e.displayHeight * 0.4, 3, tog ? 0x00eaff : 0xff37c0, 0.9)
+        .setDepth(baselineY(e) - 1)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: dot, alpha: 0, scale: 0.3, duration: 520, onComplete: () => dot.destroy() });
+    }
+  }
+
+  /** Lurker enrage glow — a pulsing red halo that grows with the buff. */
+  private syncLurkerGlow(e: Sprite, frac: number) {
+    let glow = e.getData('glow') as Phaser.GameObjects.Arc | undefined;
+    if (frac <= 0.03) {
+      if (glow) { glow.destroy(); e.setData('glow', undefined); }
+      return;
+    }
+    if (!glow) {
+      glow = this.add.circle(e.x, e.y, 10, 0xff3010, 0.5).setBlendMode(Phaser.BlendModes.ADD);
+      e.setData('glow', glow);
+    }
+    const pulse = 0.5 + 0.5 * Math.sin(this.time.now * 0.008);
+    glow.setPosition(e.x, e.y - e.displayHeight * 0.32);
+    glow.setRadius(e.displayWidth * (0.45 + 0.3 * frac) * (0.92 + 0.12 * pulse));
+    glow.setAlpha((0.3 + 0.4 * frac) * (0.7 + 0.3 * pulse));
+    glow.setDepth(baselineY(e) - 1);
+  }
+
+  /** Glowing magenta tether (with a little chain of beads) from a latched Glomper to
+   *  the player, drawn onto the shared additive tether graphics. */
+  private drawTether(e: Sprite) {
+    const x1 = e.x;
+    const y1 = e.y - e.displayHeight * 0.3;
+    const x2 = this.player.x;
+    const y2 = this.player.y - 8;
+    const g = this.tetherGfx;
+    g.lineStyle(7, 0xc06bff, 0.12);
+    g.lineBetween(x1, y1, x2, y2);
+    g.lineStyle(3, 0xff37c0, 0.55);
+    g.lineBetween(x1, y1, x2, y2);
+    for (let i = 1; i < 6; i++) {
+      const t = i / 6;
+      g.fillStyle(0xffd6ff, 0.85);
+      g.fillCircle(Phaser.Math.Linear(x1, x2, t), Phaser.Math.Linear(y1, y2, t), 2);
+    }
+  }
+
+  /** Drop any per-enemy vfx objects (called when a pooled enemy goes inactive/respawns). */
+  private clearEnemyVfx(e: Sprite) {
+    const glow = e.getData('glow') as Phaser.GameObjects.Arc | undefined;
+    if (glow) { glow.destroy(); e.setData('glow', undefined); }
+    if (e.alpha !== 1) e.setAlpha(1);
   }
 
   private killEnemy(e: Sprite, ed: EnemyData) {
@@ -320,6 +589,7 @@ export class RunScene extends Phaser.Scene {
       this.runClear();
       return;
     }
+    this.clearEnemyVfx(e); // tidy any glow/tether-state before the sprite is pooled
     this.burst(x, y, ed.archetype.color);
     this.dropGem(x, y, ed.xp);
     // Star Luck (運 luck): better odds a kill coughs up a word token.
@@ -672,10 +942,12 @@ export class RunScene extends Phaser.Scene {
     this.elapsed += dt;
     const stats = this.loadout.stats();
 
-    this.ground.update(); // redraw the tilted floor + parallax for the camera's position
+    this.ground?.update(); // redraw the tilted floor for the camera's position
+    this.facades?.update(); // pool the facade back-wall across the current view
 
     // movement + 4-direction facing
     this.controls.getDirection(this.dir);
+    if (this.editor?.active) this.dir.set(0, 0); // editor owns the arrow keys (nudge); freeze the player
     const speed = this.character.baseMoveSpeed * stats.moveSpeed * this.playerSlow;
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(this.dir.x * speed, this.dir.y * speed);
     const moving = this.dir.x !== 0 || this.dir.y !== 0;
@@ -685,19 +957,25 @@ export class RunScene extends Phaser.Scene {
     // Layer 1: y-sort by the BODY baseline (not the bobbing rig) so depth is stable.
     if (RENDER.ySort) this.rig.setDepth(baselineY(this.player));
     // Layer 2: shadow planted at the body baseline (does not bob with the rig).
-    this.shadows.sync(this.player, {
-      x: this.player.x,
-      baseY: baselineY(this.player),
-      width: this.rig.displayWidth,
-      height: this.player.displayHeight,
-    });
+    if (STAGE_LAYERS.actors) {
+      this.shadows.sync(this.player, {
+        x: this.player.x,
+        baseY: baselineY(this.player),
+        width: this.rig.displayWidth,
+        height: this.player.displayHeight,
+      });
+    } else {
+      this.shadows.hide(this.player);
+    }
 
     // enemy AI + facing (from their resulting velocity)
     let slow = 1; // Glomper latch debuff, recomputed each frame
+    this.tetherGfx.clear(); // redrawn per latched Glomper below
     for (const obj of this.enemies.getChildren()) {
       const e = obj as Sprite;
       if (!e.active) {
         this.shadows.hide(e); // recycled out of the pool — drop its planted shadow
+        this.clearEnemyVfx(e); // drop any per-enemy vfx (e.g. Lurker glow)
         continue;
       }
       const ed = e.getData('edata') as EnemyData;
@@ -706,21 +984,33 @@ export class RunScene extends Phaser.Scene {
       if (ed.latched) slow = Math.min(slow, BEHAVIOR.glomper.slow);
       if (ed.flash) { ed.flash = false; this.cameraFlash(e.x, e.y); }
       const body = e.body as Phaser.Physics.Arcade.Body;
+      const vmag = Math.hypot(body.velocity.x, body.velocity.y);
+      const moving = vmag > 4;
       const face = vectorToDir8(body.velocity.x, body.velocity.y, (e.getData('face') as FacingDir) ?? 'down');
       e.setData('face', face);
       // Too-Cool walks backwards: mirror the facing vertically so moving toward you shows his back.
       const shown = arc.reverseFacing ? reverseDir(face) : face;
-      applyFacing(e, arc.texture, shown, 'walk');
+      // Walk while moving, idle (static facing frame) when stopped (e.g. Camera Gremlin
+      // holding at range). applyFacing falls back to the static art for the 'idle' state.
+      applyFacing(e, arc.texture, shown, moving ? 'walk' : 'idle');
+      // Animation speed scales with movement speed (faster enemy = faster cycle); the
+      // Anxious One's flee is a visible panic-sprint.
+      let ts = Phaser.Math.Clamp(vmag / 70, 0.6, 2.4);
+      if (arc.key === 'AnxiousOne' && ed.state === 'flee') ts *= 1.5;
+      e.anims.timeScale = ts;
       // Enemies live in a physics Group (not on the scene UpdateList), so their
       // preUpdate never runs — advance walk animations manually each frame.
       e.anims.update(time, delta);
+      this.enemyVfx(e, ed, arc, vmag); // per-archetype tells (tint/particles/tether/glow)
       if (RENDER.ySort) e.setDepth(baselineY(e));
       this.shadows.sync(e);
     }
     this.playerSlow = slow; // applied to move speed next frame (imperceptible latency)
 
-    // weapons
-    this.weapon.update(time, this.player.x, this.player.y, this.enemies, this.dealDamage);
+    // weapons (skipped in asset-assessment mode — no actors)
+    if (STAGE_LAYERS.actors) {
+      this.weapon.update(time, this.player.x, this.player.y, this.enemies, this.dealDamage);
+    }
 
     // XP magnet (scaled by Collector's Magnet); capsules pull from a touch farther.
     this.magnetize(this.gems, PLAYER_BASE.pickupRadius * stats.magnet, 280);
@@ -747,16 +1037,18 @@ export class RunScene extends Phaser.Scene {
     if (stats.regen > 0 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + stats.regen * dt);
     this.updateHpBar();
 
-    // spawning + boss
-    if (!this.bossSpawned && this.elapsed >= BOSS_TIME) this.spawnBoss();
-    // One guaranteed early capsule so the evolution payoff is always discovered.
-    if (!this.gachaSeeded && this.elapsed >= GACHA.firstDropTime) {
-      this.gachaSeeded = true;
-      this.dropGacha(this.player.x + 70, this.player.y);
+    // spawning + boss (skipped in asset-assessment mode — enemies hidden/not spawned)
+    if (STAGE_LAYERS.actors) {
+      if (!this.bossSpawned && this.elapsed >= BOSS_TIME) this.spawnBoss();
+      // One guaranteed early capsule so the evolution payoff is always discovered.
+      if (!this.gachaSeeded && this.elapsed >= GACHA.firstDropTime) {
+        this.gachaSeeded = true;
+        this.dropGacha(this.player.x + 70, this.player.y);
+      }
+      this.spawner.update(delta, this.elapsed, this.player.x, this.player.y, this.countActive(this.enemies));
     }
-    this.spawner.update(delta, this.elapsed, this.player.x, this.player.y, this.countActive(this.enemies));
 
-    this.hud.update({
+    (this.scene.get('Hud') as HudScene | undefined)?.hud?.update({
       level: this.level,
       xp: this.xp,
       xpToNext: this.xpToNext,

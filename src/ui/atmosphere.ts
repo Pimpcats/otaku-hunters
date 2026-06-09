@@ -42,8 +42,17 @@ function ensureTexture(scene: Phaser.Scene): void {
 }
 
 export class Atmosphere {
-  constructor(scene: Phaser.Scene) {
-    if (RENDER.vignette > 0 || RENDER.gradeStrength > 0) {
+  // The atmosphere has two halves that may live on different scenes/cameras:
+  //   • overlay — the baked vignette/grade quad (+ optional scanlines), SCREEN-space,
+  //     so it belongs on the un-zoomed HUD scene (zooming it would push the vignette
+  //     ring off-screen).
+  //   • glow — camera post-FX (bloom + saturate) applied to the gameplay camera so the
+  //     neon world glows; must target the ZOOMED RunScene camera.
+  // Default builds both (single-camera behaviour); pass flags to build just one.
+  constructor(scene: Phaser.Scene, opts: { overlay?: boolean; glow?: boolean } = {}) {
+    const overlay = opts.overlay ?? true;
+    const glow = opts.glow ?? true;
+    if (overlay && (RENDER.vignette > 0 || RENDER.gradeStrength > 0)) {
       ensureTexture(scene);
       scene.add
         .image(0, 0, KEY)
@@ -53,7 +62,7 @@ export class Atmosphere {
     }
 
     // Optional overall grade (MULTIPLY). Neutral white is a no-op, so skip it.
-    if (RENDER.ambientTint !== 0xffffff) {
+    if (overlay && RENDER.ambientTint !== 0xffffff) {
       scene.add
         .rectangle(0, 0, W, H, RENDER.ambientTint, 1)
         .setOrigin(0, 0)
@@ -62,8 +71,8 @@ export class Atmosphere {
         .setDepth(DEPTH.atmosphere - 1);
     }
 
-    this.applyCameraGlow(scene);
-    this.addScanlines(scene);
+    if (glow) this.applyCameraGlow(scene);
+    if (overlay) this.addScanlines(scene);
   }
 
   /**

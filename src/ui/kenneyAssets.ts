@@ -23,7 +23,7 @@
 import Phaser from 'phaser';
 import { TEX } from '../constants';
 import { dirTextureKey, type FacingSet } from '../systems/facing';
-import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS, FLOOR_VARIANT_KEYS } from '../systems/backdrop';
+import { FLOOR_TEXTURE_KEY, PARALLAX_KEYS, FLOOR_VARIANT_KEYS, OUTDOOR_FLOOR_KEYS } from '../systems/backdrop';
 
 /** A single, non-directional texture (floor/parallax/projectile/pickup). */
 interface SingleAsset {
@@ -81,6 +81,14 @@ export const KENNEY_MANIFEST: KenneyAsset[] = [
   { kind: 'single', id: 'floorVarB', path: 'textures/floors/neon_street_tile_b.webp', key: FLOOR_VARIANT_KEYS[1], note: 'Neon-street floor variant B (512×512, flat top-down): magenta streaks, sewer grate, stickers.' },
   { kind: 'single', id: 'floorVarC', path: 'textures/floors/neon_street_tile_c.webp', key: FLOOR_VARIANT_KEYS[2], note: 'Neon-street floor variant C (512×512, flat top-down): yellow chevrons, コレクション最高, gutter.' },
   { kind: 'single', id: 'floorVarD', path: 'textures/floors/neon_street_tile_d.webp', key: FLOOR_VARIANT_KEYS[3], note: 'Neon-street floor variant D (512×512, flat top-down): crosswalk stripes, pins, puddles.' },
+  // Newer outdoor neon-street tiles (512×512, seamless, flat top-down). When all four are
+  // present they supersede the neon_street_tile set as the variant-atlas source (backdrop
+  // OUTDOOR_FLOOR_KEYS); absent → that fallback keeps the originals. Distinct keys so both
+  // can coexist without the loader's same-key skip.
+  { kind: 'single', id: 'floorStreetA', path: 'textures/floors/floor_street_a.png', key: OUTDOOR_FLOOR_KEYS[0], note: 'Outdoor street floor A (512×512, seamless): crosswalk stripes, magenta puddle, orange lane line.' },
+  { kind: 'single', id: 'floorStreetB', path: 'textures/floors/floor_street_b.png', key: OUTDOOR_FLOOR_KEYS[1], note: 'Outdoor street floor B (512×512, seamless): manhole, cyan puddle, confetti.' },
+  { kind: 'single', id: 'floorStreetC', path: 'textures/floors/floor_street_c.png', key: OUTDOOR_FLOOR_KEYS[2], note: 'Outdoor street floor C (512×512, seamless): manhole, faded crosswalk, purple puddle.' },
+  { kind: 'single', id: 'floorStreetD', path: 'textures/floors/floor_street_d.png', key: OUTDOOR_FLOOR_KEYS[3], note: 'Outdoor street floor D (512×512, seamless): yellow center line, pink/cyan puddles, litter.' },
 
   // ── Neon-city parallax skyline (textures/parallax), far → near ──────────────
   { kind: 'single', id: 'parallaxFar', path: 'textures/parallax/arcade_far.webp', key: PARALLAX_KEYS[0], note: 'Far skyline (arcade), 1920×300, horizontally seamless.' },
