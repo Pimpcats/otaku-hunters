@@ -1,20 +1,22 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../constants';
+import { dirTextureKey, vectorToCardinal, type Cardinal, type FacingSet } from '../systems/facing';
 
-// ── Arena pivot (Step 2–5): the sakura-plaza arena prototype ───────────────────
+// ── Arena pivot: the sakura-plaza arena prototype ──────────────────────────────
 // A fresh scene, built ALONGSIDE the street scene (Meta/Run untouched): one static
-// background image, a hardcoded walkable polygon, a placeholder player capsule,
-// and a smooth-follow camera. No enemies/attacks/spawning yet.
+// background image, a hardcoded walkable polygon, the player, and a smooth-follow
+// camera. No enemies/attacks/spawning yet.
+//
+// Player art: the v2 turnaround sprites (kohai_v2_{down,up,side}.png, side faces
+// RIGHT) wired into the 4-direction facing convention — down/up/side + flipX for
+// left. Static facings for now; v2 walk cycles come as separate sheets later.
 //
 // Debug: press G to toggle the walkable-polygon overlay (outline + numbered
 // vertices) for tuning WALKABLE against the background art.
 
 const ARENA_KEY = 'arena_sakura_plaza';
-const KOHAI_SHEET = 'kohai_wd'; // 6-frame walk-down, 277x544/frame, feet baseline-aligned
-const KOHAI_FRAME_W = 277;
-const KOHAI_FRAME_H = 544;
-const WALK_ANIM = 'kohai-walk-down'; // frames 1..6 @10fps
-const WALK_ANIM_ALT = 'kohai-walk-down-alt'; // frames 1,2,3 + mirrored 1,2,3 @10fps
+const KOHAI_BASE = 'kohai_v2'; // textures: kohai_v2_down / _up / _side (facing.ts convention)
+const FACING_SETS: FacingSet[] = ['down', 'up', 'side'];
 
 // Walkable region of the paved plaza, traced from sakura_plaza.png (1774×887)
 // and inset ~30px from the visual edges — shop fronts (top), stone walls and
@@ -40,17 +42,18 @@ const WALKABLE: [number, number][] = [
 ];
 
 // Player start: the sakura emblem at the plaza center (measured centroid ~904,454;
-// nudged down so the capsule's FEET sit on the emblem).
+// nudged down so the sprite's FEET sit on the emblem).
 const START = { x: 890, y: 470 };
 
 const PLAYER_SPEED = 250; // px/s
-const PLAYER_H = 70; // capsule height (px)
-const PLAYER_W = 34; // capsule width (px)
+const PLAYER_H = 76; // display height in arena space (~70–80px target)
+const PLAYER_W = 34; // capsule fallback width
 const CAMERA_LERP = 0.08;
 const VIEW_FRAC = 0.7; // ~70% of the arena width visible at once
 
 export class ArenaScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
+  private shadow!: Phaser.GameObjects.Ellipse;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private walkable!: Phaser.Geom.Polygon;
@@ -58,8 +61,7 @@ export class ArenaScene extends Phaser.Scene {
   private debugLabels: Phaser.GameObjects.Text[] = [];
   private debugOn = false;
   private hasKohai = false;
-  private altAnim = false; // T toggles walk_down <-> walk_down_alt
-  private animLabel?: Phaser.GameObjects.Text;
+  private facing: Cardinal = 'down';
 
   constructor() {
     super('Arena');
@@ -67,51 +69,11 @@ export class ArenaScene extends Phaser.Scene {
 
   preload() {
     this.load.image(ARENA_KEY, `${import.meta.env.BASE_URL}assets/arenas/sakura_plaza.png`);
-    this.load.spritesheet(KOHAI_SHEET, `${import.meta.env.BASE_URL}assets/characters/kohai_walk_down_sheet.png`, {
-      frameWidth: KOHAI_FRAME_W,
-      frameHeight: KOHAI_FRAME_H,
-    });
-  }
-
-  /** Bake horizontally-mirrored copies of walk frames 1–3 as standalone textures
-   *  (Phaser can't flip individual frames inside one animation), then register
-   *  both walk loops. */
-  private setupKohaiAnims() {
-    const src = this.textures.get(KOHAI_SHEET).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
-    const mirrored: { key: string; frame: string | number }[] = [];
-    for (let i = 0; i < 3; i++) {
-      const key = `${KOHAI_SHEET}_m${i}`;
-      if (!this.textures.exists(key)) {
-        const canvas = this.textures.createCanvas(key, KOHAI_FRAME_W, KOHAI_FRAME_H)!;
-        const ctx = canvas.context;
-        ctx.translate(KOHAI_FRAME_W, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(src, i * KOHAI_FRAME_W, 0, KOHAI_FRAME_W, KOHAI_FRAME_H, 0, 0, KOHAI_FRAME_W, KOHAI_FRAME_H);
-        canvas.refresh();
-        canvas.setFilter(Phaser.Textures.FilterMode.LINEAR);
-      }
-      mirrored.push({ key, frame: '__BASE' });
-    }
-    if (!this.anims.exists(WALK_ANIM)) {
-      this.anims.create({
-        key: WALK_ANIM,
-        frames: this.anims.generateFrameNumbers(KOHAI_SHEET, { start: 0, end: 5 }),
-        frameRate: 10,
-        repeat: -1,
-      });
-    }
-    if (!this.anims.exists(WALK_ANIM_ALT)) {
-      this.anims.create({
-        key: WALK_ANIM_ALT,
-        frames: [
-          { key: KOHAI_SHEET, frame: 0 },
-          { key: KOHAI_SHEET, frame: 1 },
-          { key: KOHAI_SHEET, frame: 2 },
-          ...mirrored,
-        ],
-        frameRate: 10,
-        repeat: -1,
-      });
+    for (const set of FACING_SETS) {
+      this.load.image(
+        dirTextureKey(KOHAI_BASE, set),
+        `${import.meta.env.BASE_URL}assets/characters/${KOHAI_BASE}_${set}.png`,
+      );
     }
   }
 
@@ -126,14 +88,19 @@ export class ArenaScene extends Phaser.Scene {
 
     this.walkable = new Phaser.Geom.Polygon(WALKABLE.map(([x, y]) => new Phaser.Geom.Point(x, y)));
 
-    // Player: the kohai walk-down sheet when present, else the capsule placeholder.
+    // Contact shadow under the feet — sized off the display height, sits just
+    // beneath the player in depth so props can still slot between later.
+    this.shadow = this.add.ellipse(START.x, START.y, PLAYER_H * 0.62, PLAYER_H * 0.2, 0x1a1126, 0.35);
+
+    // Player: the v2 kohai facing sprites when present, else the capsule placeholder.
     // Origin bottom-center either way, so the FEET are what we clamp/sort by.
-    this.hasKohai = this.textures.exists(KOHAI_SHEET);
+    this.hasKohai = FACING_SETS.every((s) => this.textures.exists(dirTextureKey(KOHAI_BASE, s)));
     if (this.hasKohai) {
-      this.textures.get(KOHAI_SHEET).setFilter(Phaser.Textures.FilterMode.LINEAR);
-      this.setupKohaiAnims();
-      this.player = this.add.sprite(START.x, START.y, KOHAI_SHEET, 0);
-      this.player.setScale(PLAYER_H / KOHAI_FRAME_H); // display at capsule height; tune here
+      for (const set of FACING_SETS) {
+        this.textures.get(dirTextureKey(KOHAI_BASE, set)).setFilter(Phaser.Textures.FilterMode.LINEAR);
+      }
+      this.player = this.add.sprite(START.x, START.y, dirTextureKey(KOHAI_BASE, 'down'));
+      this.player.setScale(PLAYER_H / this.player.height);
     } else {
       if (!this.textures.exists('arena_player_capsule')) {
         const g = this.make.graphics({ x: 0, y: 0 }, false);
@@ -149,6 +116,7 @@ export class ArenaScene extends Phaser.Scene {
     }
     this.player.setOrigin(0.5, 1); // bottom-center
     this.player.setDepth(this.player.y); // Y-sort: pass in front of / behind props later
+    this.shadow.setDepth(this.player.y - 1);
 
     // Camera: smooth follow, zoomed so ~70% of the arena width is on screen,
     // bounded to the image rect so it never pans past the arena.
@@ -170,20 +138,6 @@ export class ArenaScene extends Phaser.Scene {
       this.debugGfx.setVisible(this.debugOn);
       for (const t of this.debugLabels) t.setVisible(this.debugOn);
     });
-
-    // T: swap between the two walk loops (label is screen-fixed, top-left).
-    if (this.hasKohai) {
-      this.animLabel = this.add
-        .text(12, 10, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffe08a' })
-        .setScrollFactor(0)
-        .setDepth(10_002);
-      this.updateAnimLabel();
-      this.input.keyboard!.on('keydown-T', () => {
-        this.altAnim = !this.altAnim;
-        this.updateAnimLabel();
-        if (this.player.anims.isPlaying) this.player.play(this.currentAnim());
-      });
-    }
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.debugLabels = [];
@@ -211,12 +165,13 @@ export class ArenaScene extends Phaser.Scene {
     g.strokeCircle(START.x, START.y, 10);
   }
 
-  private currentAnim(): string {
-    return this.altAnim ? WALK_ANIM_ALT : WALK_ANIM;
-  }
-
-  private updateAnimLabel() {
-    this.animLabel?.setText(`anim: ${this.altAnim ? 'walk_down_alt' : 'walk_down'}  (T to switch)`);
+  /** Swap to the facing's art: down/up use their own views; left/right share the
+   *  right-facing 'side' view, mirrored via flipX for left. */
+  private applyFacing() {
+    const set: FacingSet = this.facing === 'left' || this.facing === 'right' ? 'side' : this.facing;
+    const key = dirTextureKey(KOHAI_BASE, set);
+    if (this.player.texture.key !== key) this.player.setTexture(key);
+    this.player.setFlipX(this.facing === 'left');
   }
 
   update(_time: number, delta: number) {
@@ -243,13 +198,12 @@ export class ArenaScene extends Phaser.Scene {
         this.player.setY(ny);
       }
       this.player.setDepth(this.player.y);
-      if (this.hasKohai && (!this.player.anims.isPlaying || this.player.anims.currentAnim?.key !== this.currentAnim())) {
-        this.player.play(this.currentAnim());
+      if (this.hasKohai) {
+        this.facing = vectorToCardinal(dx, dy, this.facing);
+        this.applyFacing();
       }
-    } else if (this.hasKohai && this.player.anims.isPlaying) {
-      // idle: stop the loop on the neutral first frame
-      this.player.anims.stop();
-      this.player.setTexture(KOHAI_SHEET, 0);
     }
+    this.shadow.setPosition(this.player.x, this.player.y);
+    this.shadow.setDepth(this.player.y - 1);
   }
 }
