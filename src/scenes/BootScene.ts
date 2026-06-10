@@ -85,6 +85,8 @@ export class BootScene extends Phaser.Scene {
         `${idx.sentences.length} sentences (${eligible} puzzle-eligible).`,
     );
 
-    this.scene.start('Meta');
+    // Arena pivot: boot into the new ArenaScene prototype. The street game is
+    // still intact — switch back to 'Meta' to reach it.
+    this.scene.start('Arena');
   }
 }
