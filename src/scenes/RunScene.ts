@@ -26,7 +26,7 @@ import { beginRun } from '../systems/srs';
 import { applyFacing, dirTextureKey, vectorToDir8, reverseDir, type FacingDir } from '../systems/facing';
 import { configurePlayerSprite } from '../ui/playerSheet';
 import { initWalkBob, tickWalkBob } from '../systems/walkAnim';
-import { RENDER, DEPTH, baselineY, STAGE_LAYERS } from '../data/render';
+import { RENDER, DEPTH, baselineY, STAGE_LAYERS, CLEAN_SLATE } from '../data/render';
 import { ShadowLayer } from '../systems/shadows';
 import { Backdrop } from '../systems/backdrop';
 import { Atmosphere } from '../ui/atmosphere';
@@ -165,9 +165,15 @@ export class RunScene extends Phaser.Scene {
     if (STAGE_LAYERS.facades) this.facades = new FacadeWall(this); // storefront back wall
     if (STAGE_LAYERS.props) this.props = new StreetProps(this, WORLD, WORLD); // street props
 
-    this.buildStreet();
-    // Dev tool: press E to place/drag/rotate buildings and export their coords (see console).
-    this.editor = new BuildingEditor(this, this.buildings, (k, x, y) => this.addBuilding(k, x, y));
+    // CLEAN SLATE: blank arena — no street/ground tile, and the placement editor stays
+    // hidden (code kept; just not instantiated, so the E key does nothing). The new arena
+    // map drops in here later. Flip CLEAN_SLATE off in render.ts to restore both.
+    this.cameras.main.setBackgroundColor(COLORS.bg);
+    if (!CLEAN_SLATE) {
+      this.buildStreet();
+      // Dev tool: press E to place/drag/rotate buildings and export their coords (see console).
+      this.editor = new BuildingEditor(this, this.buildings, (k, x, y) => this.addBuilding(k, x, y));
+    }
 
     this.player = this.physics.add.sprite(WORLD / 2, WORLD / 2, dirTextureKey(this.character.texture, 'down'));
     configurePlayerSprite(this, this.player, this.character.id);
