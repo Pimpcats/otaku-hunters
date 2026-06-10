@@ -82,6 +82,15 @@ export const LOOKS: Record<string, Look> = {
 export const ACTIVE_LOOK: keyof typeof LOOKS = 'neon';
 const L = LOOKS[ACTIVE_LOOK];
 
+// ── CLEAN SLATE (hard-pivot toggle) ────────────────────────────────────────────
+// When true the game boots a TOTALLY BLANK arena: no street/ground tile, no
+// buildings, no props/parallax/floor art loaded, the placement editor hidden, and
+// the combat loop left off (see STAGE_LAYERS.actors). All the prior art has been
+// moved to `public/old/…` and is NOT loaded while this is on. This is the base to
+// drop a NEW arena map onto. To bring the old look back: set false, restore the
+// asset paths from public/old/, and flip the STAGE_LAYERS you want.
+export const CLEAN_SLATE = true;
+
 // ── Stage layer toggles (asset-by-asset assessment scaffold) ───────────────────
 // Temporary blank-canvas switches so we can bring environment layers back ONE AT A
 // TIME and judge each. Flip a flag true to re-enable that layer. (Set them all true

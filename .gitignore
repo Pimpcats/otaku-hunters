@@ -5,3 +5,8 @@ dist-ssr/
 .DS_Store
 .vite/
 *.log
+
+# Raw, unprocessed green-screen art drops — keep the folder, ignore its contents
+# (process into public/assets/… before committing the finished art).
+assets-raw/*
+!assets-raw/.gitkeep

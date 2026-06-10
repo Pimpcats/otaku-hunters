@@ -8,6 +8,7 @@ import { loadVoiceManifest, loadVoiceFor } from '../audio/tts';
 import { CHARACTERS } from '../data/characters';
 import { getContentIndex } from '../data/contentIndex';
 import { FLOOR_TEXTURE_KEY } from '../systems/backdrop';
+import { CLEAN_SLATE } from '../data/render';
 
 // Boots the content index + placeholder art, then hands off to the meta screen.
 export class BootScene extends Phaser.Scene {
@@ -16,6 +17,11 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    // CLEAN SLATE: skip ALL art loading — the old assets moved to public/old/ and the
+    // game boots a blank arena (procedural placeholder textures, generated in create(),
+    // still cover the gated-off loop + menu portraits so nothing 404s or green-boxes).
+    if (CLEAN_SLATE) return;
+
     // Real player sprite sheets (optional — falls back to procedural art if absent).
     loadPlayerSheets(this);
     loadHeroSheets(this); // per-character 4-direction rect sheets (e.g. Kōhai)
@@ -51,7 +57,7 @@ export class BootScene extends Phaser.Scene {
     // Apply any Kenney drop-ins FIRST so the procedural generator below skips the
     // slots they filled (its textures.exists() guards), and so the floor override
     // lands before the backdrop mesh reads FLOOR_TEXTURE_KEY in the run.
-    applyKenneyAssets(this);
+    if (!CLEAN_SLATE) applyKenneyAssets(this);
     generatePlaceholderTextures(this);
     // Begin loading VOICEVOX manifests (optional; Web Speech covers gaps): the
     // shared set + each character's own per-voice set.
@@ -61,11 +67,14 @@ export class BootScene extends Phaser.Scene {
     }
     // Overlay each real sheet's directional frames onto its classes' facing keys,
     // then register the walk-cycle animations for sheets that support them.
-    bakePlayerSheets(this);
-    registerPlayerAnims(this);
-    bakeHeroSheets(this); // slice the rect hero sheets over their facing keys (overrides procedural)
-    bakeEnemyWalkSheets(this); // bake walk sheets → per-direction enemy walk anims (applyFacing uses them)
-    registerPropAnims(this); // register present prop sheets' idle anims (e.g. prop_vending_idle)
+    // (All no-ops under CLEAN_SLATE since no sheets were loaded — skipped explicitly.)
+    if (!CLEAN_SLATE) {
+      bakePlayerSheets(this);
+      registerPlayerAnims(this);
+      bakeHeroSheets(this); // slice the rect hero sheets over their facing keys (overrides procedural)
+      bakeEnemyWalkSheets(this); // bake walk sheets → per-direction enemy walk anims (applyFacing uses them)
+      registerPropAnims(this); // register present prop sheets' idle anims (e.g. prop_vending_idle)
+    }
 
     // Build the content index once up front so a malformed lessons.js surfaces
     // in the console here rather than mid-run (guardrail §8.7: never blocks).
