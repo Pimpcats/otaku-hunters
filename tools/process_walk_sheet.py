@@ -77,10 +77,12 @@ def normalize(frames: list[np.ndarray], pad: int = 4) -> list[np.ndarray]:
     out = []
     for f, s in zip(frames, stats):
         canvas = np.zeros((H, W, 4), dtype=np.uint8)
-        oy = baseline - s['foot']
-        ox = int(round(W / 2 - s['cx']))
-        h, w = f.shape[:2]
-        canvas[oy:oy + h, ox:ox + w] = f
+        # paste only the content rows/cols, positioned by feet + centroid
+        content = f[s['top']:s['bottom'] + 1, s['left']:s['right'] + 1]
+        oy = baseline - (s['foot'] - s['top'])
+        ox = int(round(W / 2 - (s['cx'] - s['left'])))
+        h, w = content.shape[:2]
+        canvas[oy:oy + h, ox:ox + w] = content
         out.append(canvas)
     return out
 
