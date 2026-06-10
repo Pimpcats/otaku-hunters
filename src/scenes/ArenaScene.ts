@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../constants';
 import { dirTextureKey, vectorToCardinal, type Cardinal, type FacingSet } from '../systems/facing';
+import { PlayerFsm } from '../systems/playerFsm';
+import { loadSlashVfx, ensureSlashVfx, playSlash, signatureTint } from '../ui/vfx';
 
 // ── Arena pivot: the sakura-plaza arena prototype ──────────────────────────────
 // A fresh scene, built ALONGSIDE the street scene (Meta/Run untouched): one static
@@ -50,6 +52,12 @@ const PLAYER_H = 76; // display height in arena space (~70–80px target)
 const PLAYER_W = 34; // capsule fallback width
 const CAMERA_LERP = 0.08;
 const VIEW_FRAC = 0.7; // ~70% of the arena width visible at once
+const ARENA_CHAR_ID = 'kohai'; // whose art + signature color the arena player uses
+
+// Attack hitbox (world px), placed in front of the facing; live on frames 2–3.
+const HIT_REACH = 48; // feet → hitbox center, along the facing
+const HIT_W = 72;
+const HIT_H = 52;
 
 export class ArenaScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
@@ -62,6 +70,9 @@ export class ArenaScene extends Phaser.Scene {
   private debugOn = false;
   private hasKohai = false;
   private facing: Cardinal = 'down';
+  private fsm!: PlayerFsm;
+  private hitGfx!: Phaser.GameObjects.Graphics; // live hitbox outline (G overlay)
+  attackHitbox = new Phaser.Geom.Rectangle(0, 0, HIT_W, HIT_H); // for future enemy overlap
 
   constructor() {
     super('Arena');
@@ -75,6 +86,7 @@ export class ArenaScene extends Phaser.Scene {
         `${import.meta.env.BASE_URL}assets/characters/${KOHAI_BASE}_${set}.png`,
       );
     }
+    loadSlashVfx(this); // no-op until the real sheet is dropped in (procedural fallback)
   }
 
   create() {
@@ -130,7 +142,33 @@ export class ArenaScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as ArenaScene['wasd'];
 
+    // ── Action FSM: idle / walk / dash / attack / ultimate ────────────────────
+    ensureSlashVfx(this);
+    this.fsm = new PlayerFsm(this, this.player, PLAYER_SPEED, {
+      onGhost: () => this.spawnGhost(),
+      onAttackActive: () => this.spawnSlash(1),
+      // Ultimate placeholder until it's spec'd: a 4-way slash burst.
+      onUltimate: () => {
+        for (const f of ['up', 'right', 'down', 'left'] as Cardinal[]) {
+          this.time.delayedCall(90 * ['up', 'right', 'down', 'left'].indexOf(f), () =>
+            this.spawnSlash(1.5, f),
+          );
+        }
+      },
+    });
+    // LMB → attack (interrupts walk; not dash/attack/ultimate).
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (p.button === 0) this.fsm.tryAttack(this.time.now);
+    });
+    // SPACE or SHIFT → dash in the current move direction (facing if standing).
+    const dash = () => this.fsm.tryDash(this.time.now, this.moveInput(true));
+    this.input.keyboard!.on('keydown-SPACE', dash);
+    this.input.keyboard!.on('keydown-SHIFT', dash);
+    // R → ultimate (stub).
+    this.input.keyboard!.on('keydown-R', () => this.fsm.tryUltimate(this.time.now));
+
     // Debug overlay (G): walkable polygon outline + numbered vertices.
+    this.hitGfx = this.add.graphics().setDepth(10_000);
     this.debugGfx = this.add.graphics().setDepth(10_000).setVisible(false);
     this.drawDebug();
     this.input.keyboard!.on('keydown-G', () => {
@@ -174,22 +212,72 @@ export class ArenaScene extends Phaser.Scene {
     this.player.setFlipX(this.facing === 'left');
   }
 
-  update(_time: number, delta: number) {
-    const dt = delta / 1000;
-    let dx = 0;
-    let dy = 0;
-    if (this.wasd.A.isDown || this.cursors.left.isDown) dx -= 1;
-    if (this.wasd.D.isDown || this.cursors.right.isDown) dx += 1;
-    if (this.wasd.W.isDown || this.cursors.up.isDown) dy -= 1;
-    if (this.wasd.S.isDown || this.cursors.down.isDown) dy += 1;
+  /** Raw movement vector; `orFacing` substitutes the facing when standing still. */
+  private moveInput(orFacing = false): { x: number; y: number } {
+    let x = 0;
+    let y = 0;
+    if (this.wasd.A.isDown || this.cursors.left.isDown) x -= 1;
+    if (this.wasd.D.isDown || this.cursors.right.isDown) x += 1;
+    if (this.wasd.W.isDown || this.cursors.up.isDown) y -= 1;
+    if (this.wasd.S.isDown || this.cursors.down.isDown) y += 1;
+    if (orFacing && x === 0 && y === 0) {
+      x = this.facing === 'left' ? -1 : this.facing === 'right' ? 1 : 0;
+      y = this.facing === 'up' ? -1 : this.facing === 'down' ? 1 : 0;
+    }
+    return { x, y };
+  }
 
-    if (dx !== 0 || dy !== 0) {
-      const inv = 1 / Math.hypot(dx, dy);
-      const step = PLAYER_SPEED * dt;
-      const nx = this.player.x + dx * inv * step;
-      const ny = this.player.y + dy * inv * step;
+  private facingVec(f: Cardinal): { x: number; y: number } {
+    return { x: f === 'left' ? -1 : f === 'right' ? 1 : 0, y: f === 'up' ? -1 : f === 'down' ? 1 : 0 };
+  }
+
+  /** Afterimage ghost: a fading clone of the player's current frame, in place. */
+  private spawnGhost() {
+    const g = this.add.image(this.player.x, this.player.y, this.player.texture.key);
+    g.setOrigin(0.5, 1);
+    g.setFlipX(this.player.flipX);
+    g.setScale(this.player.scaleX, this.player.scaleY);
+    g.setAlpha(0.4);
+    g.setDepth(this.player.y - 2); // behind the player, above the shadow's slot
+    this.tweens.add({ targets: g, alpha: 0, duration: 250, onComplete: () => g.destroy() });
+  }
+
+  /** Slash arc in the signature color, in front of the (or a given) facing. */
+  private spawnSlash(scale = 1, facing?: Cardinal) {
+    const f = facing ?? this.facing;
+    const d = this.facingVec(f);
+    const cy = this.player.y - PLAYER_H * 0.45; // arc rides at torso height
+    playSlash(this, {
+      x: this.player.x + d.x * HIT_REACH,
+      y: cy + d.y * HIT_REACH * 0.8,
+      facing: f,
+      tint: signatureTint(ARENA_CHAR_ID),
+      scale,
+      depth: this.player.y + 1,
+    });
+  }
+
+  /** Keep the attack rect glued in front of the facing (frames 2–3 only). */
+  private updateHitbox() {
+    const d = this.facingVec(this.facing);
+    const cx = this.player.x + d.x * HIT_REACH;
+    const cy = this.player.y - PLAYER_H * 0.45 + d.y * HIT_REACH * 0.8;
+    const horiz = this.facing === 'left' || this.facing === 'right';
+    this.attackHitbox.setSize(horiz ? HIT_W : HIT_H + 16, horiz ? HIT_H : HIT_W - 16);
+    this.attackHitbox.centerX = cx;
+    this.attackHitbox.centerY = cy;
+  }
+
+  update(time: number, delta: number) {
+    const dt = delta / 1000;
+    const input = this.moveInput();
+    const { vx, vy } = this.fsm.update(time, input);
+
+    if (vx !== 0 || vy !== 0) {
+      const nx = this.player.x + vx * dt;
+      const ny = this.player.y + vy * dt;
       // Clamp the FEET point to the walkable polygon; per-axis fallback gives
-      // wall-sliding instead of a dead stop on diagonals.
+      // wall-sliding instead of a dead stop on diagonals (dashes slide too).
       if (Phaser.Geom.Polygon.Contains(this.walkable, nx, ny)) {
         this.player.setPosition(nx, ny);
       } else if (Phaser.Geom.Polygon.Contains(this.walkable, nx, this.player.y)) {
@@ -198,11 +286,21 @@ export class ArenaScene extends Phaser.Scene {
         this.player.setY(ny);
       }
       this.player.setDepth(this.player.y);
-      if (this.hasKohai) {
-        this.facing = vectorToCardinal(dx, dy, this.facing);
+      // Facing follows movement only while walking — attack/dash keep their aim.
+      if (this.hasKohai && this.fsm.state === 'walk') {
+        this.facing = vectorToCardinal(input.x, input.y, this.facing);
         this.applyFacing();
       }
     }
+
+    if (this.fsm.hitboxActive) this.updateHitbox();
+    // hitbox outline rides the G debug overlay
+    this.hitGfx.clear();
+    if (this.debugOn && this.fsm.hitboxActive) {
+      this.hitGfx.lineStyle(2, 0xffe08a, 0.95);
+      this.hitGfx.strokeRectShape(this.attackHitbox);
+    }
+
     this.shadow.setPosition(this.player.x, this.player.y);
     this.shadow.setDepth(this.player.y - 1);
   }
